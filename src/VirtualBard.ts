@@ -19,10 +19,15 @@ var vb = (function ()
           "wizard,wiz":"Wizard",
           "warlock,lock":"Warlock"
       });
-      var messageTypes = {
-        test : "test",
-        character   : "Character Event"
-      };
+      enum MessageType{
+          Test = 0,
+          All = 1,
+          Character = 2
+      }
+    //   var messageTypes = {
+    //     test : "test",
+    //     character   : "Character Event"
+    //   };
       var VBAttributes = {
           IsMet : "VB-IsMet"
       }
@@ -35,10 +40,52 @@ var vb = (function ()
           log(r);
           log(r.appendText("[Appended]").prependText("[Prepended]").findTag("innerTest").setText("[SetText]").getText());
       }
-     
-
-    // returns a object that describes the results. The returned object supports additional searcing and text modification functions.
-   function findTag(baseText, tag, attributes, basis)
+    class TextPointer {
+        value: string;
+    }
+    class HTMLTextEditor{
+            originalText : TextPointer;
+            tagAttributes : string;
+            tag : string;
+            endTag : string;
+            text : string;
+            startIndex : number;
+            innerStartIndex : number;
+            innerEndIndex : number;
+            endIndex : number;
+            getText() {return this.originalText.value;}
+            findTag(subTag: string, subAttributes): HTMLTextEditor {
+                return findTag(this.text, subTag, subAttributes, this);
+            }
+            appendText(textToAppend: string): HTMLTextEditor {
+                var txtToModify = this.originalText.value;
+                this.originalText.value = txtToModify.slice(0, this.innerEndIndex) + textToAppend + txtToModify.slice(this.innerEndIndex)
+                this.innerEndIndex += textToAppend.length;
+                this.endIndex = this.innerEndIndex + this.endTag.length;
+                this.text = this.originalText.value.substring(this.innerStartIndex, this.innerEndIndex);
+                return this;
+            } 
+            setText(textToSet: string): HTMLTextEditor {
+                var txtToModify = this.originalText.value;
+                this.originalText.value = txtToModify.slice(0, this.innerStartIndex) + textToSet + txtToModify.slice(this.innerEndIndex)
+                this.innerEndIndex = this.innerStartIndex + textToSet.length;
+                this.endIndex = this.innerEndIndex + this.endTag.length;
+                this.text = this.originalText.value.substring(this.innerStartIndex, this.innerEndIndex);
+                return this;
+            }
+            prependText(textToPrepend: string): HTMLTextEditor {
+                var txtToModify = this.originalText.value;
+                this.originalText.value = txtToModify.slice(0, this.innerStartIndex) + textToPrepend + txtToModify.slice(this.innerStartIndex)
+                this.innerEndIndex += textToPrepend.length;
+                this.endIndex = this.innerEndIndex + this.endTag.length;
+                this.text = this.originalText.value.substring(this.innerStartIndex, this.innerEndIndex);
+                return this;
+            }
+    }
+    /**
+     *  returns a object that describes the results. The returned object supports additional searcing and text modification functions.
+     */
+   function findTag(baseText: string, tag: string, attributes: any, basis?: HTMLTextEditor) : HTMLTextEditor
     {
         
         var regString = "(<" + tag + "(\\b[^>]*)>)([\\s\\S]*?)(<\\\/" + tag + ">)";
@@ -82,46 +129,60 @@ var vb = (function ()
             offset = 0;
             useOriginalText = { value : baseText };
         }
-        
-        var result = {
-            originalText : useOriginalText,
-            tagAttributes : match[2],
-            tag : tag,
-            endTag : match[4],
-            text : match[3],
-            startIndex : match.index + offset,
-            innerStartIndex : match.index + match[1].length + offset,
-            innerEndIndex : (match.index + match[0].length - match[4].length) + offset,
-            endIndex : match.index + match[0].length + offset,
-            getText : function () {return this.originalText.value;},
-            findTag : function(subTag, subAttributes) {
-                return findTag(result.text, subTag, subAttributes, result);
-            },
-            appendText : function(textToAppend) {
-                var txtToModify = this.originalText.value;
-                this.originalText.value = txtToModify.slice(0, this.innerEndIndex) + textToAppend + txtToModify.slice(this.innerEndIndex)
-                this.innerEndIndex += textToAppend.length;
-                this.endIndex = this.innerEndIndex + endTag.length;
-                this.text = this.originalText.value.substring(this.innerStartIndex, this.innerEndIndex);
-                return result;
-            },
-            setText : function(textToSet) {
-                var txtToModify = this.originalText.value;
-                this.originalText.value = txtToModify.slice(0, this.innerStartIndex) + textToSet + txtToModify.slice(this.innerEndIndex)
-                this.innerEndIndex = this.innerStartIndex + textToSet.length;
-                this.endIndex = this.innerEndIndex + endTag.length;
-                this.text = this.originalText.value.substring(this.innerStartIndex, this.innerEndIndex);
-                return result;
-            },
-            prependText : function(textToPrepend) {
-                var txtToModify = this.originalText.value;
-                this.originalText.value = txtToModify.slice(0, this.innerStartIndex) + textToPrepend + txtToModify.slice(this.innerStartIndex)
-                this.innerEndIndex += textToPrepend.length;
-                this.endIndex = this.innerEndIndex + endTag.length;
-                this.text = this.originalText.value.substring(this.innerStartIndex, this.innerEndIndex);
-                return result;
-            }
-        };
+        var result = new HTMLTextEditor();
+        result.originalText = useOriginalText;
+        result.tagAttributes = match[2];
+        result.tag = tag;
+        result.endTag = match[4];
+        result.text = match[3];
+        result.startIndex = match.index + offset;
+        result.innerStartIndex = match.index + match[1].length + offset;
+        result.innerEndIndex = (match.index + match[0].length - match[4].length) + offset;
+        result.endIndex = match.index + match[0].length + offset;
+
+
+
+
+
+        // var result = {
+        //     originalText : useOriginalText,
+        //     tagAttributes : match[2],
+        //     tag : tag,
+        //     endTag : match[4],
+        //     text : match[3],
+        //     startIndex : match.index + offset,
+        //     innerStartIndex : match.index + match[1].length + offset,
+        //     innerEndIndex : (match.index + match[0].length - match[4].length) + offset,
+        //     endIndex : match.index + match[0].length + offset,
+        //     getText : function () {return this.originalText.value;},
+        //     findTag : function(subTag, subAttributes) {
+        //         return findTag(result.text, subTag, subAttributes, result);
+        //     },
+        //     appendText : function(textToAppend) {
+        //         var txtToModify = this.originalText.value;
+        //         this.originalText.value = txtToModify.slice(0, this.innerEndIndex) + textToAppend + txtToModify.slice(this.innerEndIndex)
+        //         this.innerEndIndex += textToAppend.length;
+        //         this.endIndex = this.innerEndIndex + endTag.length;
+        //         this.text = this.originalText.value.substring(this.innerStartIndex, this.innerEndIndex);
+        //         return result;
+        //     },
+        //     setText : function(textToSet) {
+        //         var txtToModify = this.originalText.value;
+        //         this.originalText.value = txtToModify.slice(0, this.innerStartIndex) + textToSet + txtToModify.slice(this.innerEndIndex)
+        //         this.innerEndIndex = this.innerStartIndex + textToSet.length;
+        //         this.endIndex = this.innerEndIndex + endTag.length;
+        //         this.text = this.originalText.value.substring(this.innerStartIndex, this.innerEndIndex);
+        //         return result;
+        //     },
+        //     prependText : function(textToPrepend) {
+        //         var txtToModify = this.originalText.value;
+        //         this.originalText.value = txtToModify.slice(0, this.innerStartIndex) + textToPrepend + txtToModify.slice(this.innerStartIndex)
+        //         this.innerEndIndex += textToPrepend.length;
+        //         this.endIndex = this.innerEndIndex + endTag.length;
+        //         this.text = this.originalText.value.substring(this.innerStartIndex, this.innerEndIndex);
+        //         return result;
+        //     }
+        // };
         log(result);
         return result;
 
@@ -153,11 +214,11 @@ var vb = (function ()
               }
           }
       }
-      function isAnyDefined()
+      function isAnyDefined(...toTest: string[]) : boolean
       {
-          for (var i = 0; i < arguments.length; i++)
+          for (var i = 0; i < toTest.length; i++)
           {
-              if (isDefined(arguments[i]))
+              if (isDefined(toTest[i]))
               {
                   return true;
               }
@@ -175,9 +236,23 @@ var vb = (function ()
             }
             return obj;
         }
-            function parseMessage(msg)
+        class MessageInfo{
+            IsValid: boolean;
+            IsHelp: boolean;
+            Type: MessageType;
+            UserContextId: string;
+            UserName: string;
+            Commands: MessageCommand[];
+
+        }
+        class MessageCommand{
+            Type: string;
+            Params: string[];
+        }
+
+            function parseMessage(msg) : MessageInfo
             {
-                var result = {};
+                var result = new MessageInfo();
                 if (msg.type != "api")
                 {
                     result.IsValid = false;
@@ -187,25 +262,25 @@ var vb = (function ()
                 if (msg.content.indexOf("!h") == 0)
                 {
                     result.IsHelp = true;
-                    result.Type = "All";
+                    result.Type = MessageType.All;
                 }
                 else if (msg.content.indexOf("!c") == 0)
                 {
-                    result.Type = messageTypes.character;
+                    result.Type = MessageType.Character;
                 }
                 else if (msg.content.indexOf("!test") == 0)
                 {
-                    result.Type = messageTypes.test;
+                    result.Type = MessageType.Test;
                 }
                 else
                 {
-                    result.IsValud = false;
+                    result.IsValid = false;
                     return result;
                 }
                 result.IsValid = true;
                 result.UserContextId = msg.playerid;
                 result.UserName = msg.who;
-                var cmd = {Type:"", Params:[]};
+                var cmd = new MessageCommand();
                 result.Commands = [];
                 // we now search for the next '-' starting element.
                 var parts = msg.content.trim().split(" ");
@@ -220,7 +295,7 @@ var vb = (function ()
                     index = 1;
                 }
                 var addedSomething = false;
-                for (i = index; i < parts.length; i++)
+                for (var i = index; i < parts.length; i++)
                 {
                     var part = parts[i];
                     if (part.indexOf("-") == 0)
@@ -290,36 +365,36 @@ var vb = (function ()
             {
                 
             }
-            function process(context, data)
+            function process(context, data: MessageInfo)
             {
                 context.Current = {};
                 var processingFunction;
                 var postAction;
-                if (data.Type == messageTypes.character)
+                switch (data.Type)
                 {
-                    if (data.IsHelp)
-                    {
-                        printJournalHelp(data);
-                    }
-                    else
-                    {
-                        context.Current.SentenceParts = {};
-                        processingFunction = function (ctx, cmd) {processCharacterAction(ctx, cmd)};  
-                        postAction = function (ctx) {p_characterFunctions.logResults(ctx)};
-                    }
+                    case MessageType.Character:
+                        if (data.IsHelp)
+                        {
+                            printJournalHelp(data);
+                        }
+                        else
+                        {
+                            context.Current.SentenceParts = {};
+                            processingFunction = function (ctx, cmd) {processCharacterAction(ctx, cmd)};  
+                            postAction = function (ctx) {p_characterFunctions.logResults(ctx)};
+                        }
+                    break;
+                    case MessageType.Test:
+                        testCode();
+                    break;
+                    default:
+                        throw "Command " + data.Type + " not implemented";
                 }
-                else if (data.Type == messageTypes.test)
-                {
-                    testCode();
-                }
-                else
-                {
-                    throw "Command not implemented";
-                }
+                
                 if (typeof processingFunction !== 'undefined')
                 {
                     var errors = [];
-                    for (i = 0; i < data.Commands.length; i++)
+                    for (var i = 0; i < data.Commands.length; i++)
                     {
                         try
                         {

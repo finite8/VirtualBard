@@ -31,7 +31,47 @@ var vb = (function () {
         log(r);
         log(r.appendText("[Appended]").prependText("[Prepended]").findTag("innerTest").setText("[SetText]").getText());
     }
-    // returns a object that describes the results. The returned object supports additional searcing and text modification functions.
+    var TextPointer = (function () {
+        function TextPointer() {
+        }
+        return TextPointer;
+    }());
+    var HTMLTextEditor = (function () {
+        function HTMLTextEditor() {
+        }
+        HTMLTextEditor.prototype.getText = function () { return this.originalText.value; };
+        HTMLTextEditor.prototype.findTag = function (subTag, subAttributes) {
+            return findTag(this.text, subTag, subAttributes, this);
+        };
+        HTMLTextEditor.prototype.appendText = function (textToAppend) {
+            var txtToModify = this.originalText.value;
+            this.originalText.value = txtToModify.slice(0, this.innerEndIndex) + textToAppend + txtToModify.slice(this.innerEndIndex);
+            this.innerEndIndex += textToAppend.length;
+            this.endIndex = this.innerEndIndex + this.endTag.length;
+            this.text = this.originalText.value.substring(this.innerStartIndex, this.innerEndIndex);
+            return this;
+        };
+        HTMLTextEditor.prototype.setText = function (textToSet) {
+            var txtToModify = this.originalText.value;
+            this.originalText.value = txtToModify.slice(0, this.innerStartIndex) + textToSet + txtToModify.slice(this.innerEndIndex);
+            this.innerEndIndex = this.innerStartIndex + textToSet.length;
+            this.endIndex = this.innerEndIndex + this.endTag.length;
+            this.text = this.originalText.value.substring(this.innerStartIndex, this.innerEndIndex);
+            return this;
+        };
+        HTMLTextEditor.prototype.prependText = function (textToPrepend) {
+            var txtToModify = this.originalText.value;
+            this.originalText.value = txtToModify.slice(0, this.innerStartIndex) + textToPrepend + txtToModify.slice(this.innerStartIndex);
+            this.innerEndIndex += textToPrepend.length;
+            this.endIndex = this.innerEndIndex + this.endTag.length;
+            this.text = this.originalText.value.substring(this.innerStartIndex, this.innerEndIndex);
+            return this;
+        };
+        return HTMLTextEditor;
+    }());
+    /**
+     *  returns a object that describes the results. The returned object supports additional searcing and text modification functions.
+     */
     function findTag(baseText, tag, attributes, basis) {
         var regString = "(<" + tag + "(\\b[^>]*)>)([\\s\\S]*?)(<\\\/" + tag + ">)";
         var r = new RegExp(regString, "gim");
@@ -62,45 +102,46 @@ var vb = (function () {
             offset = 0;
             useOriginalText = { value: baseText };
         }
-        var result = {
-            originalText: useOriginalText,
-            tagAttributes: match[2],
-            tag: tag,
-            endTag: match[4],
-            text: match[3],
-            startIndex: match.index + offset,
-            innerStartIndex: match.index + match[1].length + offset,
-            innerEndIndex: (match.index + match[0].length - match[4].length) + offset,
-            endIndex: match.index + match[0].length + offset,
-            getText: function () { return this.originalText.value; },
-            findTag: function (subTag, subAttributes) {
-                return findTag(result.text, subTag, subAttributes, result);
-            },
-            appendText: function (textToAppend) {
-                var txtToModify = this.originalText.value;
-                this.originalText.value = txtToModify.slice(0, this.innerEndIndex) + textToAppend + txtToModify.slice(this.innerEndIndex);
-                this.innerEndIndex += textToAppend.length;
-                this.endIndex = this.innerEndIndex + endTag.length;
-                this.text = this.originalText.value.substring(this.innerStartIndex, this.innerEndIndex);
-                return result;
-            },
-            setText: function (textToSet) {
-                var txtToModify = this.originalText.value;
-                this.originalText.value = txtToModify.slice(0, this.innerStartIndex) + textToSet + txtToModify.slice(this.innerEndIndex);
-                this.innerEndIndex = this.innerStartIndex + textToSet.length;
-                this.endIndex = this.innerEndIndex + endTag.length;
-                this.text = this.originalText.value.substring(this.innerStartIndex, this.innerEndIndex);
-                return result;
-            },
-            prependText: function (textToPrepend) {
-                var txtToModify = this.originalText.value;
-                this.originalText.value = txtToModify.slice(0, this.innerStartIndex) + textToPrepend + txtToModify.slice(this.innerStartIndex);
-                this.innerEndIndex += textToPrepend.length;
-                this.endIndex = this.innerEndIndex + endTag.length;
-                this.text = this.originalText.value.substring(this.innerStartIndex, this.innerEndIndex);
-                return result;
-            }
-        };
+        var result = new HTMLTextEditor();
+        // var result = {
+        //     originalText : useOriginalText,
+        //     tagAttributes : match[2],
+        //     tag : tag,
+        //     endTag : match[4],
+        //     text : match[3],
+        //     startIndex : match.index + offset,
+        //     innerStartIndex : match.index + match[1].length + offset,
+        //     innerEndIndex : (match.index + match[0].length - match[4].length) + offset,
+        //     endIndex : match.index + match[0].length + offset,
+        //     getText : function () {return this.originalText.value;},
+        //     findTag : function(subTag, subAttributes) {
+        //         return findTag(result.text, subTag, subAttributes, result);
+        //     },
+        //     appendText : function(textToAppend) {
+        //         var txtToModify = this.originalText.value;
+        //         this.originalText.value = txtToModify.slice(0, this.innerEndIndex) + textToAppend + txtToModify.slice(this.innerEndIndex)
+        //         this.innerEndIndex += textToAppend.length;
+        //         this.endIndex = this.innerEndIndex + endTag.length;
+        //         this.text = this.originalText.value.substring(this.innerStartIndex, this.innerEndIndex);
+        //         return result;
+        //     },
+        //     setText : function(textToSet) {
+        //         var txtToModify = this.originalText.value;
+        //         this.originalText.value = txtToModify.slice(0, this.innerStartIndex) + textToSet + txtToModify.slice(this.innerEndIndex)
+        //         this.innerEndIndex = this.innerStartIndex + textToSet.length;
+        //         this.endIndex = this.innerEndIndex + endTag.length;
+        //         this.text = this.originalText.value.substring(this.innerStartIndex, this.innerEndIndex);
+        //         return result;
+        //     },
+        //     prependText : function(textToPrepend) {
+        //         var txtToModify = this.originalText.value;
+        //         this.originalText.value = txtToModify.slice(0, this.innerStartIndex) + textToPrepend + txtToModify.slice(this.innerStartIndex)
+        //         this.innerEndIndex += textToPrepend.length;
+        //         this.endIndex = this.innerEndIndex + endTag.length;
+        //         this.text = this.originalText.value.substring(this.innerStartIndex, this.innerEndIndex);
+        //         return result;
+        //     }
+        // };
         log(result);
         return result;
     }
