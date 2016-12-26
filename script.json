@@ -1,0 +1,22 @@
+{
+    "name": "Virtual Bard",
+    "script": "VirtualBard.js",
+    "version": "1.0",
+    "previousversions": [],
+    "description": "Aims to be like a CLI for adventure logging for use by players. Uses commands to add encountered NPCs and adventure events and information in a fast and simple way.",
+    "authors": "Nathan Taylor-Barnett",
+    "roll20userid": "1149533",
+    "useroptions": [
+        
+    ],
+    "dependencies": [],
+    "modifies": {
+        "state.autoStaggered": "read,write",
+        "state.autoRecovery": "read,write",
+        "token.bar1_link": "read,write",
+        "token.bar2_link": "read,write",
+        "token.bar3_link": "read,write",
+        "attribute.id": "read,write"
+    },
+    "conflicts": []
+}
