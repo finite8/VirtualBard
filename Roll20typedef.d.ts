@@ -17,8 +17,9 @@ interface Character extends Roll20Object {
 }
 interface Attribute extends Roll20Object {
     name: string;
-    current: any; 
-    characterid:string;
+    current?: any; 
+    characterid?:string;
+    _characterid?:string;
 }
 interface Handout extends Roll20Object {
     /**URL to an image used for the handout. See the note about avatar and imgsrc restrictions below. */
@@ -62,12 +63,26 @@ declare function log(message: any) : void;
  * Pass this function a list of attributes, and it will return all objects that match as an array. Note that this operates on all objects of all types across all pages -- so you probably want to include at least a filter for _type and _pageid if you're working with tabletop objects.
  * @param {T} attributes - The properties being queried
  */
-declare function findObjs<T extends Roll20Object>(attributes: T) : T;
+declare function findObjs<T extends Roll20Object>(attributes: T) : T[];
 /**
  * Non Typesafe declaration. Pass this function a list of attributes, and it will return all objects that match as an array. Note that this operates on all objects of all types across all pages -- so you probably want to include at least a filter for _type and _pageid if you're working with tabletop objects.
  * @param {any} attributes - The properties being queried
  */
 declare function findObjs(attributes: any) : any;
-
-
-
+/**
+ * Gets the value of an attribute, using the default value from the character sheet if the attribute is not present.
+ * getAttrByName will only get the value of the attribute, not the attribute object itself. If you wish to reference properties of the attribute other than "current" or "max", or if you wish to change properties of the attribute, you must use one of the other functions above, such as findObjs.
+ * Note that there is an inconsistency of usage when attempting to get a value from a repeating section whose name contains mixed case. The name of the repeating section needs to be passed all lower case. The rest of the attribute_name needs to be in it's original case. (IE: "repeating_Skills_XyZ_Name" will not work. "repeating_skills_XyZ_Name" will work and will fetch the value in "repeating_Skills_XyZ_Name").
+ * Source: https://wiki.roll20.net/API:Objects#getAttrByName.28character_id.2C_attribute_name.2C_value_type.29
+ * @param {string} character_id - The Roll20 Character Id to get the attribute for
+ * @param {string} attribute_name - The name of the Attribute to retrieve
+ * @param {string} value_type - Either "current" to get the current value, or "max" to get the max bound for this attribute value (i.e: current "HP" and max "HP")
+ */
+declare function getAttrByName(character_id: string, attribute_name: string, value_type?: string): any;
+/**
+ * Adds an event callback into the Roll20 Scripting API. When this event occurs, the given function will be called.
+ * For a full listing of events, see https://wiki.roll20.net/API:Events
+ * 
+ * Examples: "chat:message" accepts a callback that takes a string as a parameter for chat input
+ */
+declare function on(eventType: string, callback: (...args: any[]) => any): void;
