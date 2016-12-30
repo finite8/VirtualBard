@@ -31,7 +31,7 @@ var vb = (function ()
       var VBAttributes = {
           IsMet : "VB-IsMet"
       }
-     
+      
 
       function testCode()
       {
@@ -40,6 +40,39 @@ var vb = (function ()
           log(r);
           log(r.appendText("[Appended]").prependText("[Prepended]").findTag("innerTest").setText("[SetText]").getText());
       }
+      class CharacterFindResult
+        {
+            public IsNew: boolean;
+            public Char: Character;
+        }
+      class UserContext {
+            constructor(playerId: string, userName: string)
+            {
+                this.PlayerId = playerId;
+                this.UserName = userName;
+            }
+            public PlayerId : string;
+            public UserName: string;
+            public Current: any;
+            public CurrentChar: CharacterDataContainer;
+
+            public SendChat(text: string): void
+            {
+                sendMessage(this.UserName, text);
+            }
+        }
+        /**
+         * As character containers can take several forms (Character sheets, Handout sheets, or nothing), this is used
+         * to abstract that behaviour accordingly.
+         */
+    abstract class CharacterDataContainer {
+        
+    }
+
+    class CharacterSheetContainer extends CharacterDataContainer
+    {
+        
+    }
     class TextPointer {
         value: string;
     }
@@ -247,7 +280,7 @@ var vb = (function ()
         }
         class MessageCommand{
             Type: string;
-            Params: string[];
+            Params: string[] = [];
         }
 
             function parseMessage(msg) : MessageInfo
@@ -304,7 +337,8 @@ var vb = (function ()
                         if (addedSomething)
                         {
                             result.Commands.push(cmd);
-                            cmd = {Type:part, Params:[]};
+                            cmd = new MessageCommand();
+                            cmd.Type = part;
                             addedSomething = false;
                         }
                         else
@@ -350,13 +384,7 @@ var vb = (function ()
                 
                 if (typeof ctx == 'undefined')
                 {
-                    ctx = {
-                              PlayerId  :   msg.playerid
-                            , UserName  :   msg.who
-                            , SendChat : function (text) {
-                                sendMessage(msg.who, text);
-                            }
-                        };
+                    ctx = new UserContext(msg.playerid, msg.who);
                     contextStore[msg.playerid] = ctx;
                 }
                 return ctx;
@@ -365,10 +393,10 @@ var vb = (function ()
             {
                 
             }
-            function process(context, data: MessageInfo)
+            function process(context: UserContext, data: MessageInfo)
             {
                 context.Current = {};
-                var processingFunction;
+                let processingFunction: (ctx: UserContext, cmd: MessageCommand) => void;
                 var postAction;
                 switch (data.Type)
                 {
@@ -421,7 +449,7 @@ var vb = (function ()
             {
                 sendMessage(data.UserName, "!j +met <name> --- Adds a new event for meeting a person. Creates a new person entry switches context to them")
             }
-            function processCharacterAction(ctx, cmd)
+            function processCharacterAction(ctx: UserContext, cmd: MessageCommand)
             {
                 if (cmd.Type == "-met")
                 {
@@ -508,7 +536,7 @@ var vb = (function ()
               p_sysFunctions.setCharacterAttribute(ctx.CurrentChar, "class", realClass);
               p_sysFunctions.setCharacterAttribute(ctx.CurrentChar, "inputClass", cmd.Params[0]);
           },
-        metAction: function (ctx, cmd) {
+        metAction: function (ctx: UserContext, cmd: MessageCommand) {
             var charName = cmd.Params.join(" ");
             var r = p_sysFunctions.getCharacterSheet(charName);
             log("Char Info: " + r);
@@ -593,7 +621,7 @@ var vb = (function ()
                 {
                     return this.journalHandout;
                 }
-                var handouts = findObjs({_type:"handout", name: "Adventure Log"});
+                var handouts = findObjs<Handout>({_type:"handout", name: "Adventure Log"});
                 if (handouts.length == 0)
                 {
                     var h = createObj("handout", {name: "Adventure Log", inplayerjournals:"all", controlledby:"all", notes: ""});
@@ -628,7 +656,7 @@ var vb = (function ()
               }
           },
 
-          getCharacterSheet : function (charName) {
+          getCharacterSheet : function (charName: string) : CharacterFindResult {
                 var char = this.findCharacterSheet(charName);
                 log("Result:" + char);
                 var isNew;
@@ -651,7 +679,10 @@ var vb = (function ()
                 
                 
                 log(char);
-                return {IsNew : isNew, Char: char};
+                var ret = new CharacterFindResult();
+                ret.IsNew = isNew;
+                ret.Char = char;
+                return ret;
           },
         getCharacterAttribute: function (char, attribName)
         {
@@ -668,7 +699,7 @@ var vb = (function ()
         setCharacterAttribute: function (char, attribName, newValue)
         {
 
-            var attribs = findObjs({_type:"attribute", _characterid:char.id,name:attribName});
+            var attribs = findObjs<Attribute>({_type:"attribute", _characterid:char.id,name:attribName});
             log("setting attribute");
             log(char);
             //log(findObjs({_type:"attribute", _characterid:char.id}));

@@ -18,10 +18,16 @@ var vb = (function () {
         "wizard,wiz": "Wizard",
         "warlock,lock": "Warlock"
     });
-    var messageTypes = {
-        test: "test",
-        character: "Character Event"
-    };
+    var MessageType;
+    (function (MessageType) {
+        MessageType[MessageType["Test"] = 0] = "Test";
+        MessageType[MessageType["All"] = 1] = "All";
+        MessageType[MessageType["Character"] = 2] = "Character";
+    })(MessageType || (MessageType = {}));
+    //   var messageTypes = {
+    //     test : "test",
+    //     character   : "Character Event"
+    //   };
     var VBAttributes = {
         IsMet: "VB-IsMet"
     };
@@ -103,6 +109,15 @@ var vb = (function () {
             useOriginalText = { value: baseText };
         }
         var result = new HTMLTextEditor();
+        result.originalText = useOriginalText;
+        result.tagAttributes = match[2];
+        result.tag = tag;
+        result.endTag = match[4];
+        result.text = match[3];
+        result.startIndex = match.index + offset;
+        result.innerStartIndex = match.index + match[1].length + offset;
+        result.innerEndIndex = (match.index + match[0].length - match[4].length) + offset;
+        result.endIndex = match.index + match[0].length + offset;
         // var result = {
         //     originalText : useOriginalText,
         //     tagAttributes : match[2],
@@ -165,8 +180,12 @@ var vb = (function () {
         }
     }
     function isAnyDefined() {
-        for (var i = 0; i < arguments.length; i++) {
-            if (isDefined(arguments[i])) {
+        var toTest = [];
+        for (var _i = 0; _i < arguments.length; _i++) {
+            toTest[_i] = arguments[_i];
+        }
+        for (var i = 0; i < toTest.length; i++) {
+            if (isDefined(toTest[i])) {
                 return true;
             }
         }
@@ -181,8 +200,19 @@ var vb = (function () {
         }
         return obj;
     }
+    var MessageInfo = (function () {
+        function MessageInfo() {
+        }
+        return MessageInfo;
+    }());
+    var MessageCommand = (function () {
+        function MessageCommand() {
+            this.Params = [];
+        }
+        return MessageCommand;
+    }());
     function parseMessage(msg) {
-        var result = {};
+        var result = new MessageInfo();
         if (msg.type != "api") {
             result.IsValid = false;
             return result;
@@ -190,22 +220,22 @@ var vb = (function () {
         result.IsHelp = false;
         if (msg.content.indexOf("!h") == 0) {
             result.IsHelp = true;
-            result.Type = "All";
+            result.Type = MessageType.All;
         }
         else if (msg.content.indexOf("!c") == 0) {
-            result.Type = messageTypes.character;
+            result.Type = MessageType.Character;
         }
         else if (msg.content.indexOf("!test") == 0) {
-            result.Type = messageTypes.test;
+            result.Type = MessageType.Test;
         }
         else {
-            result.IsValud = false;
+            result.IsValid = false;
             return result;
         }
         result.IsValid = true;
         result.UserContextId = msg.playerid;
         result.UserName = msg.who;
-        var cmd = { Type: "", Params: [] };
+        var cmd = new MessageCommand();
         result.Commands = [];
         // we now search for the next '-' starting element.
         var parts = msg.content.trim().split(" ");
@@ -218,13 +248,14 @@ var vb = (function () {
             index = 1;
         }
         var addedSomething = false;
-        for (i = index; i < parts.length; i++) {
+        for (var i = index; i < parts.length; i++) {
             var part = parts[i];
             if (part.indexOf("-") == 0) {
                 // we have a command initiator
                 if (addedSomething) {
                     result.Commands.push(cmd);
-                    cmd = { Type: part, Params: [] };
+                    cmd = new MessageCommand();
+                    cmd.Type = part;
                     addedSomething = false;
                 }
                 else {
@@ -270,25 +301,26 @@ var vb = (function () {
         context.Current = {};
         var processingFunction;
         var postAction;
-        if (data.Type == messageTypes.character) {
-            if (data.IsHelp) {
-                printJournalHelp(data);
-            }
-            else {
-                context.Current.SentenceParts = {};
-                processingFunction = function (ctx, cmd) { processCharacterAction(ctx, cmd); };
-                postAction = function (ctx) { p_characterFunctions.logResults(ctx); };
-            }
-        }
-        else if (data.Type == messageTypes.test) {
-            testCode();
-        }
-        else {
-            throw "Command not implemented";
+        switch (data.Type) {
+            case MessageType.Character:
+                if (data.IsHelp) {
+                    printJournalHelp(data);
+                }
+                else {
+                    context.Current.SentenceParts = {};
+                    processingFunction = function (ctx, cmd) { processCharacterAction(ctx, cmd); };
+                    postAction = function (ctx) { p_characterFunctions.logResults(ctx); };
+                }
+                break;
+            case MessageType.Test:
+                testCode();
+                break;
+            default:
+                throw "Command " + data.Type + " not implemented";
         }
         if (typeof processingFunction !== 'undefined') {
             var errors = [];
-            for (i = 0; i < data.Commands.length; i++) {
+            for (var i = 0; i < data.Commands.length; i++) {
                 try {
                     var cmd = data.Commands[i];
                     processingFunction(context, cmd);
