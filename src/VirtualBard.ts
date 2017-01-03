@@ -1,29 +1,86 @@
-/// <reference path="..\Roll20typedef.d.ts" />
+/// <reference path="Roll20typedef.d.ts" />
+/// <reference path="../typings/globals/underscore/index.d.ts" />
 var vb = (function ()
 {
-      var sexTypes = expand({
-          "m,male" : "Male",
-          "f,female" : "Female"
-      });
-      var classTypes = expand({
-          "fighter" : "Fighter",
-          "barb,barbarian" : "Barbarian",
-          "bard" : "Bard",
-          "cleric": "Cleric",
-          "druid,hippie":"Druid",
-          "monk":"Monk",
-          "paladin":"Paladin",
-          "ranger":"Ranger",
-          "rogue,thief":"Rogue",
-          "sorcerer,sorc":"Sorcerer",
-          "wizard,wiz":"Wizard",
-          "warlock,lock":"Warlock"
-      });
+      function Initialize(completionCallback: () => void) : void
+      {
+          on("ready", function() {
+          let settingsHandout = p_sysFunctions.getHandout("VBSettings", true, false);
+          settingsHandout.get("gmnotes", function (d) {
+              try
+              {
+                  var loadedSettings = JSON.parse(_.unescape(d));
+                  settings = _.extend(DefaultSettings(), loadedSettings);
+                  log(settings);
+                  if (isAssigned(completionCallback))
+                  {
+                    completionCallback();
+                  }
+              }
+              catch (err)
+              {
+                  // we dont REALLY care about the error. we will however use it to indicate that a default settings entry needs to be created.
+                  settings = DefaultSettings();
+                  setTimeout(function() {
+                      var notes = _.escape(JSON.stringify(settings));
+                      log(notes);
+                     settingsHandout.set("gmnotes", notes);
+                     if (isAssigned(completionCallback))
+                        {
+                            completionCallback();
+                        }
+                  }, 100);
+              }
+          });
+          });
+          
+      }
       enum MessageType{
           Test = 0,
           All = 1,
           Character = 2
+      };
+      enum CharacterMode{
+          /** A Character sheet is used to store information about the character. This is the ideal mode of operation */
+          Sheet = 0,
+          /** A Handout is used to store character information. This will use the GM Notes to store JSON data and a HTML region in the notes to provide detail. */
+          Handout = 1,
+          /** A Single handout is used to store information for all characters encountered. GM Notes is used to store JSON data and a HTML region in the notes to provide detail. */
+          SingleHandout = 2,
       }
+      function DefaultSettings(){ return {
+          sexTypes: expand({
+          "m,male" : "Male",
+          "f,female" : "Female"
+            }),
+            classTypes: expand({
+                "fighter" : "Fighter",
+                "barb,barbarian" : "Barbarian",
+                "bard" : "Bard",
+                "cleric": "Cleric",
+                "druid,hippie":"Druid",
+                "monk":"Monk",
+                "paladin":"Paladin",
+                "ranger":"Ranger",
+                "rogue,thief":"Rogue",
+                "sorcerer,sorc":"Sorcerer",
+                "wizard,wiz":"Wizard",
+                "warlock,lock":"Warlock"
+            }),
+            CharacterResolutionOrder : //{mode : CharacterMode, canCreate : boolean}[] = 
+            [ {mode: CharacterMode.Sheet, canCreate: false} // attempt to find a sheet first
+            , {mode: CharacterMode.Handout, canCreate: false} // then try to find a handout
+            , {mode: CharacterMode.SingleHandout, canCreate: false} // then try to find a single handout
+            , {mode: CharacterMode.Sheet, canCreate: true} // otherwise, fall back and create the character sheet
+            ],
+            AdventureLog: "Adventure Log"
+      }};
+      let settings = DefaultSettings();
+      
+      
+      
+      
+      
     //   var messageTypes = {
     //     test : "test",
     //     character   : "Character Event"
@@ -35,15 +92,12 @@ var vb = (function ()
 
       function testCode()
       {
-          var myString = "balls balls and balls and stuff<test id=\"1\" others=\"5\">someother <innerTest></innerTest></test>";
-          var r = findTag(myString, "test", {id:"1"});
-          log(r);
-          log(r.appendText("[Appended]").prependText("[Prepended]").findTag("innerTest").setText("[SetText]").getText());
+          
       }
       class CharacterFindResult
         {
             public IsNew: boolean;
-            public Char: Character;
+            public Char: CharacterDataContainer;
         }
       class UserContext {
             constructor(playerId: string, userName: string)
@@ -66,12 +120,23 @@ var vb = (function ()
          * to abstract that behaviour accordingly.
          */
     abstract class CharacterDataContainer {
+        public abstract setAttribute(attribName: string, attribValue: any);
         
     }
 
     class CharacterSheetContainer extends CharacterDataContainer
     {
-        
+        constructor(char: Character)
+        {
+            super();
+            this.CharSheet = char;
+        }
+        CharSheet: Character;
+        public setAttribute(attribName: string, attribValue: any)
+        {
+
+        }
+
     }
     class TextPointer {
         value: string;
@@ -87,7 +152,7 @@ var vb = (function ()
             innerEndIndex : number;
             endIndex : number;
             getText() {return this.originalText.value;}
-            findTag(subTag: string, subAttributes): HTMLTextEditor {
+            findTag(subTag: string, subAttributes?: any): HTMLTextEditor {
                 return findTag(this.text, subTag, subAttributes, this);
             }
             appendText(textToAppend: string): HTMLTextEditor {
@@ -522,7 +587,7 @@ var vb = (function ()
           },
           classAction: function (ctx, cmd) {
               this.assertCurrentCharDefined(ctx, cmd);
-              var realClass = classTypes[cmd.Params[0].toLowerCase()];
+              var realClass = settings.classTypes[cmd.Params[0].toLowerCase()];
               if (!isDefined(realClass))
               {
                   ctx.SendChat("Class " + cmd.Params[0] + " could not be resolved to a real class. Character sheet will resort to a default instead");
@@ -538,7 +603,7 @@ var vb = (function ()
           },
         metAction: function (ctx: UserContext, cmd: MessageCommand) {
             var charName = cmd.Params.join(" ");
-            var r = p_sysFunctions.getCharacterSheet(charName);
+            var r = p_sysFunctions.getCharacterInfo(charName);
             log("Char Info: " + r);
             if (!r.IsNew)
             {
@@ -568,7 +633,7 @@ var vb = (function ()
         }
         , parseSex : function(text)
         {
-            var sex = sexTypes[text.toLowerCase()];
+            var sex = settings.sexTypes[text.toLowerCase()];
             if (typeof sex == 'undefined')
             {
                 throw text + " could not be interpreted as a valid sex";
@@ -621,15 +686,14 @@ var vb = (function ()
                 {
                     return this.journalHandout;
                 }
-                var handouts = findObjs<Handout>({_type:"handout", name: "Adventure Log"});
+                var handouts = findObjs<Handout>({_type:"handout", name: settings.AdventureLog});
                 if (handouts.length == 0)
                 {
-                    var h = createObj("handout", {name: "Adventure Log", inplayerjournals:"all", controlledby:"all", notes: ""});
+                    var h = createObj("handout", {name: settings.AdventureLog, inplayerjournals:"all", controlledby:"all", notes: ""});
                     this.journalHandout = h;
                 }
                 else
                 {
-                    createObj("something", {name: "something",  });
                     log("found existing");
                     this.journalHandout = handouts[0];
                 }
@@ -639,9 +703,43 @@ var vb = (function ()
       };
 
       var p_sysFunctions = {
-          
           getSafeCharacterName : function (charName) {
                 return "_vb_c:" + charName;
+          },
+          /** Gets or Creates a handout with the specified name. */
+          getHandout : function(handoutName: string, isHidden: boolean, isEditable: boolean) : Handout
+          {
+              let hos = findObjs<Handout>({_type: "handout", name: handoutName});
+              
+              log(hos);
+              if (isAssigned(hos) && hos.length > 0)
+              {
+                  return hos[0];
+              }
+              else
+              {
+                  let inplayerjournalsStr : string;
+                  if (isHidden)
+                  {
+                      inplayerjournalsStr = "";
+                  }
+                  else
+                  {
+                      inplayerjournalsStr = "all";
+                  }
+                  let isEditableStr : string;
+                  if (isEditable)
+                  {
+                      isEditableStr = "all";
+                      inplayerjournalsStr = "all";
+                  }
+                  else
+                  {
+                      isEditableStr = "";
+                  }
+                  return createObj<Handout>("handout", {name: handoutName, inplayerjournals: inplayerjournalsStr, controlledby: isEditableStr });
+              }
+              
           },
           findCharacterSheet : function (charName) {
               var shts = findObjs({_type:"character", name: charName});
@@ -655,34 +753,49 @@ var vb = (function ()
                   return shts[0];
               }
           },
+          /**
+           * Resolves the Character info reference. This will return different things based on the mode of operation
+           */
+          getCharacterInfo : function (charName: string) : CharacterFindResult {
+             
+              for (var i = 0; i < settings.CharacterResolutionOrder.length; i++)
+              {
+                  let m = settings.CharacterResolutionOrder[i];
+                  switch (m.mode)
+                  {
+                      case CharacterMode.Sheet:
+                            var char = this.findCharacterSheet(charName);
+                            let isNew : boolean;
+                            if (char == null)
+                            {
+                                log("Could not find Character sheet for " + charName)
+                                if (m.canCreate)
+                                {
+                                    char = createObj<Character>("character", {name: charName, inplayerjournals:"all", controlledby:"all"});
+                                    this.setCharacterAttribute(char, VBAttributes.IsMet, true);
+                                    isNew = true;
+                                }
+                                else
+                                {
+                                    log("CanCreateCharacterSheets=false. Continuing...");
+                                }
+                            }
+                            else
+                            {
+                                isNew = !(this.getCharacterAttribute(char, VBAttributes.IsMet) == true);
+                            }
+                            var ret = new CharacterFindResult();
+                            ret.IsNew = isNew;
+                            ret.Char = new CharacterSheetContainer(char);
+                      return ret;
+                      default:
+                        
+                        throw "CharacterSheetMode " + m + " is not yet implemented";
+                  }
+              }
+              throw "VirtualBard was unable to resolve the character " + charName + ". Try adding more ResolutionOptions or allowing VirtualBard to create sheets or handouts."
 
-          getCharacterSheet : function (charName: string) : CharacterFindResult {
-                var char = this.findCharacterSheet(charName);
-                log("Result:" + char);
-                var isNew;
-                if (char !== null)
-                {
-                    // the NPC sheet might have been created ahead of time. Double check this to be sure.
-                    isNew = !(this.getCharacterAttribute(char, VBAttributes.IsMet) == true);
-                    
-
-                    
-                }
-                else
-                {
-                    
-                    char = createObj<Character>("character", {name: charName, inplayerjournals:"all", controlledby:"all"});
-                    this.setCharacterAttribute(char, VBAttributes.IsMet, true);
-                    isNew = true;
-                }
                 
-                
-                
-                log(char);
-                var ret = new CharacterFindResult();
-                ret.IsNew = isNew;
-                ret.Char = char;
-                return ret;
           },
         getCharacterAttribute: function (char, attribName)
         {
@@ -721,7 +834,8 @@ var vb = (function ()
       };
             
       var contextStore = {};
-            
+      Initialize(function () 
+      {
             on("chat:message", function (msg) {
                 log(msg);
                 //try
@@ -740,5 +854,9 @@ var vb = (function ()
                 //    ctx.SendChat("Invalid command: " + err.message);
                 //}
             });
+      });
+        
 }());
+
+
 

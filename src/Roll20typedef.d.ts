@@ -7,7 +7,11 @@ interface Roll20Object {
     type?: string;
     /** Use THIS when querying */
     _type?: string;
+    /** Retrieves a field value. */
+    get?(field : string, callback : (value: any) => void );
+    set?(field : string, value: any);
 }
+
 interface Character extends Roll20Object {
     /** the name of the character as it will appear in the "Name" field */
     name : string;
@@ -26,7 +30,7 @@ interface Handout extends Roll20Object {
     avatar?: string;	
     /** The name of the handout. Default: "Mysterious Note" */
     name?: string; 
-    /** Contains the text in the handout. See the note below about using Notes and GMNotes.
+    /** Contains the text in the handout. See the note below about using Notes and GMNotes. Note: In order to get this value, you MUST use the {@see Roll20Object#get(string, (any) => void)} method. 
      */ 		
     notes?: string;
     /** Contains the text in the handout that only the GM sees. See the note below about using Notes and GMNotes. */
@@ -69,6 +73,7 @@ declare function findObjs<T extends Roll20Object>(attributes: T) : T[];
  * @param {any} attributes - The properties being queried
  */
 declare function findObjs(attributes: any) : any;
+
 /**
  * Gets the value of an attribute, using the default value from the character sheet if the attribute is not present.
  * getAttrByName will only get the value of the attribute, not the attribute object itself. If you wish to reference properties of the attribute other than "current" or "max", or if you wish to change properties of the attribute, you must use one of the other functions above, such as findObjs.

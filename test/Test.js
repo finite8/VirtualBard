@@ -1,4 +1,9 @@
-/// <reference path="..\Roll20typedef.d.ts" />
+var __extends = (this && this.__extends) || function (d, b) {
+    for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p];
+    function __() { this.constructor = d; }
+    d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
+};
+/// <reference path="Roll20typedef.d.ts" />
 var vb = (function () {
     var sexTypes = expand({
         "m,male": "Male",
@@ -32,11 +37,38 @@ var vb = (function () {
         IsMet: "VB-IsMet"
     };
     function testCode() {
-        var myString = "balls balls and balls and stuff<test id=\"1\" others=\"5\">someother <innerTest></innerTest></test>";
-        var r = findTag(myString, "test", { id: "1" });
-        log(r);
-        log(r.appendText("[Appended]").prependText("[Prepended]").findTag("innerTest").setText("[SetText]").getText());
     }
+    var CharacterFindResult = (function () {
+        function CharacterFindResult() {
+        }
+        return CharacterFindResult;
+    }());
+    var UserContext = (function () {
+        function UserContext(playerId, userName) {
+            this.PlayerId = playerId;
+            this.UserName = userName;
+        }
+        UserContext.prototype.SendChat = function (text) {
+            sendMessage(this.UserName, text);
+        };
+        return UserContext;
+    }());
+    /**
+     * As character containers can take several forms (Character sheets, Handout sheets, or nothing), this is used
+     * to abstract that behaviour accordingly.
+     */
+    var CharacterDataContainer = (function () {
+        function CharacterDataContainer() {
+        }
+        return CharacterDataContainer;
+    }());
+    var CharacterSheetContainer = (function (_super) {
+        __extends(CharacterSheetContainer, _super);
+        function CharacterSheetContainer() {
+            return _super.apply(this, arguments) || this;
+        }
+        return CharacterSheetContainer;
+    }(CharacterDataContainer));
     var TextPointer = (function () {
         function TextPointer() {
         }
@@ -284,13 +316,7 @@ var vb = (function () {
     function getUserContext(msg) {
         var ctx = contextStore[msg.playerid];
         if (typeof ctx == 'undefined') {
-            ctx = {
-                PlayerId: msg.playerid,
-                UserName: msg.who,
-                SendChat: function (text) {
-                    sendMessage(msg.who, text);
-                }
-            };
+            ctx = new UserContext(msg.playerid, msg.who);
             contextStore[msg.playerid] = ctx;
         }
         return ctx;
@@ -516,7 +542,10 @@ var vb = (function () {
                 isNew = true;
             }
             log(char);
-            return { IsNew: isNew, Char: char };
+            var ret = new CharacterFindResult();
+            ret.IsNew = isNew;
+            ret.Char = char;
+            return ret;
         },
         getCharacterAttribute: function (char, attribName) {
             assertVariableAssigned(char, "char");
@@ -564,3 +593,8 @@ var vb = (function () {
         //}
     });
 }());
+/// <reference path="..\src\VirtualBard.ts" />"
+var myString = "balls balls and balls and stuff<test id=\"1\" others=\"5\">someother <innerTest></innerTest></test>";
+var r = vb.findTag(myString, "test", { id: "1" });
+log(r);
+log(r.appendText("[Appended]").prependText("[Prepended]").findTag("innerTest").setText("[SetText]").getText());
