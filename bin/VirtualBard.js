@@ -11,24 +11,40 @@ var vb = (function () {
             var settingsHandout = p_sysFunctions.getHandout("VBSettings", true, false);
             settingsHandout.get("gmnotes", function (d) {
                 try {
-                    var loadedSettings = JSON.parse(_.unescape(d));
-                    settings = _.extend(DefaultSettings(), loadedSettings);
-                    log(settings);
-                    if (isAssigned(completionCallback)) {
-                        completionCallback();
+                    var tag = findTag(d, "Settings");
+                    var setData = true;
+                    var loadedSettings;
+                    if (tag != null) {
+                        loadedSettings = JSON.parse(tag.text);
+                        if ((JSON.stringify(loadedSettings) != JSON.stringify({}))
+                            && (loadedSettings != null)) {
+                            setData = false;
+                        }
                     }
-                }
-                catch (err) {
-                    // we dont REALLY care about the error. we will however use it to indicate that a default settings entry needs to be created.
-                    settings = DefaultSettings();
-                    setTimeout(function () {
-                        var notes = _.escape(JSON.stringify(settings));
-                        log(notes);
-                        settingsHandout.set("gmnotes", notes);
+                    if (setData) {
+                        settings = DefaultSettings();
+                        setTimeout(function () {
+                            var notes = JSON.stringify(settings);
+                            log("New data to assign: " + notes);
+                            settingsHandout.set("gmnotes", "<Settings>" + notes + "</Settings>");
+                            if (isAssigned(completionCallback)) {
+                                completionCallback();
+                            }
+                        }, 100);
+                    }
+                    else {
+                        log("Existing: " + JSON.stringify(loadedSettings));
+                        settings = _.extend(DefaultSettings(), loadedSettings);
                         if (isAssigned(completionCallback)) {
                             completionCallback();
                         }
-                    }, 100);
+                        return;
+                    }
+                }
+                catch (err) {
+                    // we dont REALLY care about the error. we will however use it to indicate some kind of json error
+                    log("WARNING! Configuration error. Failed to parse custom settings data. Error: " + err.message);
+                    settings = DefaultSettings();
                 }
             });
         });
@@ -108,25 +124,96 @@ var vb = (function () {
         return UserContext;
     }());
     /**
+     * This is a core Character data container. This stores all of the core character data properties. It is up the the individual
+     * reference implementation to store the data in its respecive container.
+     * This contains the core properties of character data, but more can be added at any time. In no way
+     * should data storage be limited to the properties defined here.
+     */
+    var CharacterData = (function () {
+        function CharacterData() {
+        }
+        CharacterData.prototype.SetProperty = function (propName, value) {
+            // we will do a case insensitive search first
+            for (var i in this) {
+                if (this.hasOwnProperty(i) && (i.toLowerCase() == propName.toLowerCase())) {
+                    this[i] = value;
+                    return;
+                }
+            }
+            this[propName] = value;
+        };
+        CharacterData.prototype.GetProperty = function (propName) {
+            // we will do a case insensitive search first
+            for (var i in this) {
+                if (this.hasOwnProperty(i) && (i.toLowerCase() == propName.toLowerCase())) {
+                    return this[i];
+                }
+            }
+            var result = this[propName];
+            if (isAssigned(result)) {
+                return (result);
+            }
+            else {
+                return null;
+            }
+        };
+        return CharacterData;
+    }());
+    /**
      * As character containers can take several forms (Character sheets, Handout sheets, or nothing), this is used
      * to abstract that behaviour accordingly.
      */
-    var CharacterDataContainer = (function () {
-        function CharacterDataContainer() {
+    var CharacterReferenceBase = (function () {
+        function CharacterReferenceBase() {
+            this.Data = new CharacterData();
         }
-        return CharacterDataContainer;
+        /** By default, this will retrieve values from the CharacterData object. This can be overidden by other implementations to do more fancy things */
+        CharacterReferenceBase.prototype.GetAttribute = function (attribName) {
+            return this.Data.GetProperty(attribName);
+        };
+        CharacterReferenceBase.prototype.SetAttribute = function (attribName, attribValue) {
+            var savedValue = this.AssignAttributeValue(attribName, attribValue);
+            this.Data.SetProperty(attribName, savedValue);
+            this.SaveData(this.Data);
+        };
+        return CharacterReferenceBase;
     }());
-    var CharacterSheetContainer = (function (_super) {
-        __extends(CharacterSheetContainer, _super);
-        function CharacterSheetContainer(char) {
+    /**
+     * A character that has their own character sheet to store their information.
+     */
+    var CharacterSheetReference = (function (_super) {
+        __extends(CharacterSheetReference, _super);
+        function CharacterSheetReference(char) {
             var _this = _super.call(this) || this;
             _this.CharSheet = char;
+            _this.LoadData();
             return _this;
         }
-        CharacterSheetContainer.prototype.setAttribute = function (attribName, attribValue) {
+        CharacterSheetReference.prototype.LoadData = function () {
+            var refObj = this;
+            this.CharSheet.get("gmnotes", function (t) {
+                var tag = findTag(t, "CharData");
+                if (tag != null) {
+                    var jData = JSON.parse(tag.text);
+                    _.extend(refObj.Data, jData);
+                }
+            });
         };
-        return CharacterSheetContainer;
-    }(CharacterDataContainer));
+        CharacterSheetReference.prototype.SaveData = function (data) {
+            var refObj = this;
+            this.CharSheet.get("gmnotes", function (t) {
+                var htmlEdt = findTag(t, "CharData").setText(JSON.stringify(refObj.Data));
+                setTimeout(function () {
+                    refObj.CharSheet.set("gmnotes", htmlEdt.getText());
+                }, 100);
+            });
+        };
+        CharacterSheetReference.prototype.AssignAttributeValue = function (attribName, attribValue) {
+            p_sysFunctions.setCharacterAttribute(this.CharSheet, attribName, attribValue);
+            return attribValue;
+        };
+        return CharacterSheetReference;
+    }(CharacterReferenceBase));
     var TextPointer = (function () {
         function TextPointer() {
         }
@@ -162,6 +249,10 @@ var vb = (function () {
             this.endIndex = this.innerEndIndex + this.endTag.length;
             this.text = this.originalText.value.substring(this.innerStartIndex, this.innerEndIndex);
             return this;
+        };
+        HTMLTextEditor.prototype.appendTag = function (tagToAppend) {
+            var edt = this.appendText("<" + tagToAppend + "></" + tagToAppend + ">");
+            return edt.findTag(tagToAppend);
         };
         return HTMLTextEditor;
     }());
@@ -409,8 +500,9 @@ var vb = (function () {
                     var cmd = data.Commands[i];
                     processingFunction(context, cmd);
                 }
-                catch (err) {
-                    errors.push("cmd=(" + cmd.Type + " " + cmd.Params.join(" ") + "), err=" + err.message);
+                catch (er) {
+                    var err = er;
+                    errors.push("cmd=(" + cmd.Type + " " + cmd.Params.join(" ") + "), err=" + err.message + ", stack=" + err.stack);
                 }
             }
             if (isDefined(postAction)) {
@@ -617,6 +709,7 @@ var vb = (function () {
         getCharacterInfo: function (charName) {
             for (var i = 0; i < settings.CharacterResolutionOrder.length; i++) {
                 var m = settings.CharacterResolutionOrder[i];
+                log("Attmepting to resolve character '" + charName + "' using mode '" + CharacterMode[m.mode] + "'");
                 switch (m.mode) {
                     case CharacterMode.Sheet:
                         var char = this.findCharacterSheet(charName);
@@ -624,23 +717,26 @@ var vb = (function () {
                         if (char == null) {
                             log("Could not find Character sheet for " + charName);
                             if (m.canCreate) {
+                                log("Creating...");
                                 char = createObj("character", { name: charName, inplayerjournals: "all", controlledby: "all" });
                                 this.setCharacterAttribute(char, VBAttributes.IsMet, true);
                                 isNew = true;
                             }
                             else {
-                                log("CanCreateCharacterSheets=false. Continuing...");
+                                log("canCreate=false. Continuing...");
+                                continue;
                             }
                         }
                         else {
+                            log("Found!");
                             isNew = !(this.getCharacterAttribute(char, VBAttributes.IsMet) == true);
                         }
                         var ret = new CharacterFindResult();
                         ret.IsNew = isNew;
-                        ret.Char = new CharacterSheetContainer(char);
+                        ret.Char = new CharacterSheetReference(char);
                         return ret;
                     default:
-                        throw "CharacterSheetMode " + m + " is not yet implemented";
+                        log("CharacterSheetMode " + m + " is not yet implemented");
                 }
             }
             throw "VirtualBard was unable to resolve the character " + charName + ". Try adding more ResolutionOptions or allowing VirtualBard to create sheets or handouts.";

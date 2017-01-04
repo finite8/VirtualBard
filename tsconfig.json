@@ -1,0 +1,10 @@
+{
+    "compilerOptions": {
+        "target": "ES5"
+    },
+    "filesGlob": [
+        "src/**/*.ts",
+        "test/**/*.ts",
+        "typings/index.d.ts"
+    ]
+}
