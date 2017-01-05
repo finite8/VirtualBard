@@ -15,7 +15,7 @@
 			"isBuildCommand": true,
 			"suppressTaskName": true,
 			"taskName": "Build VirtualBard",
-			"args": ["src/VirtualBard",  "--outDir", "bin"
+			"args": ["src/VirtualBard", "src/VirtualBard_main",  "--outFile", "bin/VirtualBard.js"
 				
 			]
 		},
