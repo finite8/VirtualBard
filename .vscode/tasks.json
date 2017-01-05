@@ -22,7 +22,7 @@
 		{
 			"suppressTaskName": true,
 			"taskName": "Build Test",
-			"args": ["src/VirtualBard", "test/Test_VirtualBard",  "--outFile", "test/Test.js"]
+			"args": ["src/VirtualBard","test/TestFramework", "test/Test_VirtualBard",  "--outFile", "bin/VirtualBard_Test.js"]
 		}
 	]
 

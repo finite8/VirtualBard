@@ -26,7 +26,7 @@ var VirtualBard;
                         settings = DefaultSettings();
                         setTimeout(function () {
                             var notes = JSON.stringify(settings);
-                            log("New data to assign: " + notes);
+                            VirtualBard.log("New data to assign: " + notes);
                             settingsHandout.set("gmnotes", "<Settings>" + notes + "</Settings>");
                             if (isAssigned(completionCallback)) {
                                 completionCallback();
@@ -34,7 +34,7 @@ var VirtualBard;
                         }, 100);
                     }
                     else {
-                        log("Existing: " + JSON.stringify(loadedSettings));
+                        VirtualBard.log("Existing: " + JSON.stringify(loadedSettings));
                         settings = _.extend(DefaultSettings(), loadedSettings);
                         if (isAssigned(completionCallback)) {
                             completionCallback();
@@ -44,7 +44,7 @@ var VirtualBard;
                 }
                 catch (err) {
                     // we dont REALLY care about the error. we will however use it to indicate some kind of json error
-                    log("WARNING! Configuration error. Failed to parse custom settings data. Error: " + err.message);
+                    VirtualBard.log("WARNING! Configuration error. Failed to parse custom settings data. Error: " + err.message);
                     settings = DefaultSettings();
                 }
             });
@@ -439,7 +439,7 @@ var VirtualBard;
         var r = new RegExp(regString, "gim");
         var match = r.exec(baseText);
         if (match == null) {
-            log("no match");
+            VirtualBard.log("no match");
             return null;
         }
         if (isAssigned(attributes)) {
@@ -448,7 +448,7 @@ var VirtualBard;
                 if (attributes.hasOwnProperty(p)) {
                     var attribReg = new RegExp(p + "=\"" + attributes[p] + "\"");
                     if (attribReg.exec(match[2]) == null) {
-                        log("missing attribute");
+                        VirtualBard.log("missing attribute");
                     }
                 }
             }
@@ -513,7 +513,7 @@ var VirtualBard;
         //         return result;
         //     }
         // };
-        log(result);
+        VirtualBard.log(result);
         return result;
     }
     VirtualBard.findTag = findTag;
@@ -627,7 +627,7 @@ var VirtualBard;
         if (addedSomething) {
             result.Commands.push(cmd);
         }
-        log(result);
+        VirtualBard.log(result);
         return result;
     }
     function processAction(user, data) {
@@ -765,7 +765,7 @@ var VirtualBard;
         metAction: function (ctx, cmd) {
             var charName = cmd.Params.join(" ");
             var r = p_sysFunctions.getCharacterInfo(charName);
-            log("Char Info: " + r);
+            VirtualBard.log("Char Info: " + r);
             if (!r.IsNew) {
                 sendMessage(ctx.UserName, "The party is already aware of " + charName);
             }
@@ -804,13 +804,13 @@ var VirtualBard;
             this.currentSentence = this.currentSentence + text;
             var j = this.getJournalHandout();
             j.get("notes", function (n) {
-                log("Existing Notes:" + n);
+                VirtualBard.log("Existing Notes:" + n);
                 setTimeout(function () {
                     j.set("notes", n + text);
                 }, 100);
             });
             //j.notes = (j.notes || "") + text;
-            log("Writting to log:" + text);
+            VirtualBard.log("Writting to log:" + text);
         },
         appendJournalLine: function (text) {
             this.appendJournalText(text + "<br>");
@@ -832,7 +832,7 @@ var VirtualBard;
                 this.journalHandout = h;
             }
             else {
-                log("found existing");
+                VirtualBard.log("found existing");
                 this.journalHandout = handouts[0];
             }
             this.appendJournalLine(new Date(Date.now()).toLocaleString());
@@ -846,7 +846,7 @@ var VirtualBard;
         /** Gets or Creates a handout with the specified name. */
         getHandout: function (handoutName, isHidden, isEditable) {
             var hos = findObjs({ _type: "handout", name: handoutName });
-            log(hos);
+            VirtualBard.log(hos);
             if (isAssigned(hos) && hos.length > 0) {
                 return hos[0];
             }
@@ -871,7 +871,7 @@ var VirtualBard;
         },
         findCharacterSheet: function (charName) {
             var shts = findObjs({ _type: "character", name: charName });
-            log(shts);
+            VirtualBard.log(shts);
             if (shts.length == 0) {
                 return null;
             }
@@ -885,26 +885,26 @@ var VirtualBard;
         getCharacterInfo: function (charName) {
             for (var i = 0; i < settings.CharacterResolutionOrder.length; i++) {
                 var m = settings.CharacterResolutionOrder[i];
-                log("Attmepting to resolve character '" + charName + "' using mode '" + CharacterMode[m.mode] + "'");
+                VirtualBard.log("Attmepting to resolve character '" + charName + "' using mode '" + CharacterMode[m.mode] + "'");
                 switch (m.mode) {
                     case CharacterMode.Sheet:
                         var char = this.findCharacterSheet(charName);
                         var isNew = void 0;
                         if (char == null) {
-                            log("Could not find Character sheet for " + charName);
+                            VirtualBard.log("Could not find Character sheet for " + charName);
                             if (m.canCreate) {
-                                log("Creating...");
+                                VirtualBard.log("Creating...");
                                 char = createObj("character", { name: charName, inplayerjournals: "all", controlledby: "all" });
                                 this.setCharacterAttribute(char, VBAttributes.IsMet, true);
                                 isNew = true;
                             }
                             else {
-                                log("canCreate=false. Continuing...");
+                                VirtualBard.log("canCreate=false. Continuing...");
                                 continue;
                             }
                         }
                         else {
-                            log("Found!");
+                            VirtualBard.log("Found!");
                             isNew = !(this.getCharacterAttribute(char, VBAttributes.IsMet) == true);
                         }
                         var ret = new CharacterFindResult();
@@ -912,7 +912,7 @@ var VirtualBard;
                         ret.Char = new CharacterSheetReference(char);
                         return ret;
                     default:
-                        log("CharacterSheetMode " + m + " is not yet implemented");
+                        VirtualBard.log("CharacterSheetMode " + m + " is not yet implemented");
                 }
             }
             throw "VirtualBard was unable to resolve the character " + charName + ". Try adding more ResolutionOptions or allowing VirtualBard to create sheets or handouts.";
@@ -920,7 +920,7 @@ var VirtualBard;
         getCharacterAttribute: function (char, attribName) {
             assertVariableAssigned(char, "char");
             if (!isDefined(char.id)) {
-                log(char);
+                VirtualBard.log(char);
                 throw "id was undefined on char parameter";
             }
             var result = getAttrByName(char.id, attribName);
@@ -928,13 +928,13 @@ var VirtualBard;
         },
         setCharacterAttribute: function (char, attribName, newValue) {
             var attribs = findObjs({ _type: "attribute", _characterid: char.id, name: attribName });
-            log("setting attribute");
-            log(char);
+            VirtualBard.log("setting attribute");
+            VirtualBard.log(char);
             //log(findObjs({_type:"attribute", _characterid:char.id}));
             if (attribs.length == 0) {
                 // we instead need to insert it
                 var newAttrib = createObj("attribute", { name: attribName, current: newValue, characterid: char.id });
-                log("Inserting attribute" + attribName);
+                VirtualBard.log("Inserting attribute" + attribName);
             }
             else if (attribs.length > 1) {
                 throw attribs.length + " attributes discovered with name " + attribName;
@@ -948,7 +948,7 @@ var VirtualBard;
     function Initialize() {
         Setup(function () {
             on("chat:message", function (msg) {
-                log(msg);
+                VirtualBard.log(msg);
                 //try
                 //{
                 var r = parseMessage(msg);
@@ -969,8 +969,38 @@ var VirtualBard;
     VirtualBard.Initialize = Initialize;
     ;
 })(VirtualBard || (VirtualBard = {}));
+var Assert;
+(function (Assert) {
+    function Suite(suiteName, delegate) {
+        try {
+            delegate();
+        }
+        catch (error) {
+            var err = error;
+            throw "Suite '" + suiteName + "' Failed.\r\n"
+                + "Reason: " + err.message + "\r\n"
+                + "StackTrace: " + err.stack;
+        }
+    }
+    Assert.Suite = Suite;
+    function AreEqual(expected, actual) {
+        if (expected === actual) {
+        }
+        else {
+            throw "Expected " + expected + ", Actual " + actual;
+        }
+    }
+    Assert.AreEqual = AreEqual;
+})(Assert || (Assert = {}));
 /// <reference path="..\src\VirtualBard.ts" />"
+/// <reference path="..\test\TestFramework.ts" />"
 var VirtualBard;
 (function (VirtualBard) {
-    VirtualBard.Initialize();
+    function log(text) {
+        console.log(text);
+    }
+    VirtualBard.log = log;
+    var myString = "balls balls and balls and stuff<test id=\"1\" others=\"5\">someother <innerTest></innerTest></test>";
+    var r = VirtualBard.findTag(myString, "test", { id: "1" });
+    Assert.AreEqual("balls balls and balls and stuff<test id=\"1\" others=\"5\">[Prepended]someother <innerTest>[SetText]</innerTest>[Appended]</test>", r.appendText("[Appended]").prependText("[Prepended]").findTag("innerTest").setText("[SetText]").getText());
 })(VirtualBard || (VirtualBard = {}));
