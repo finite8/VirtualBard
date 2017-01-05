@@ -100,6 +100,31 @@ var vb = (function ()
             , {mode: CharacterMode.Sheet, canCreate: true} // otherwise, fall back and create the character sheet
             ],
             AdventureLog: "Adventure Log"
+            ,CalendarConfiguration : <CalendarConfig>
+            {
+                HoursInDay: 24
+                , DaysInWeek : 10
+                , WeeksInMonth: 3
+                , MonthsInYear: 12
+                , Start: new Duration()
+                , YearSuffix: "PR"
+                , MonthNames: ["Hammer", "Alturiak", "Ches","Tarsakh","Mirtul", "Kythorn","Flamerule","Elesias","Eleint","Marpenoth","Uktar","Nightal"]
+            }
+            ,/** When specifying this, make sure that it is sequential else the time portion incrementer will not work */DayTimeRanges : <DayTimeRange[]>[
+                {Name: "Dawn", StartHour: 6, EndHour: 7}
+                , {Name: "Morning", StartHour: 7, EndHour: 12}
+                , {Name: "Highsun", StartHour: 12, EndHour: 13}
+                , {Name: "Afternoon", StartHour: 13, EndHour: 17}
+                , {Name: "Dusk", StartHour: 17, EndHour: 18}
+                , {Name: "Sunset", StartHour: 18, EndHour: 19}
+                , {Name: "Evening", StartHour: 19, EndHour: 24}
+                , {Name: "Midnight", StartHour: 0, EndHour: 1}
+                , {Name: "Moondark", StartHour: 1, EndHour: 6}
+            ]
+            
+                
+                
+        
       }};
       let settings = DefaultSettings();
       
@@ -119,6 +144,182 @@ var vb = (function ()
       function testCode()
       {
           
+      }
+      class DayTimeRange
+      {
+          public Name: string;
+          public StartHour: number;
+          public EndHour: number;
+      }
+      class Duration
+      {
+          constructor()
+          {
+                this.Year= 0;
+                this.Month= 0;
+                this.Week= 0;
+                this.Day= 0;
+                this.Hour= 0;
+          }
+           public Year : number;
+            public Month : number;
+           public Week : number;
+           public Day : number;
+           public Hour : number;
+           private static nth(d: number) : string {
+            if(d>3 && d<21) return 'th'; 
+            switch (d % 10) {
+                    case 1:  return "st";
+                    case 2:  return "nd";
+                    case 3:  return "rd";
+                    default: return "th";
+                }
+            }
+            /** Returns the equivlanet DatTimeRange for a given hour of the day */
+            public static GetDayTimePortion(hour: number) : DayTimeRange 
+            {
+                let useStartHour = hour == 24 ? 0 : hour;
+                let useEndHour = hour == 0 ? 24 : hour;
+                for (var i = 0; i < settings.DayTimeRanges.length; i++)
+                {
+                    let r = settings.DayTimeRanges[i];
+                    if (useStartHour >= r.StartHour && (useEndHour < r.EndHour || r.StartHour == r.EndHour))
+                    {
+                        return r;
+                    }
+                }
+                throw "No DayTimeRange was specified in settings for hour " + hour;
+            }
+
+            public AddDuration(other: Duration) : void
+            {
+                this.Day += other.Day;
+                this.Hour += other.Hour;
+                this.Week += other.Week;
+                this.Month += other.Month;
+                this.Year += other.Year;
+            }
+
+            public GetDisplayText() : string
+            {
+                let port = Duration.GetDayTimePortion(this.Hour);
+                let diff = this.Hour - port.StartHour;
+                let hourPortionText = diff == 0 ? "" : diff + " hours after ";
+                return  "" + hourPortionText + port.Name
+                        + " " + (this.Day + 1) + Duration.nth(this.Day + 1) 
+                        + " of " + settings.CalendarConfiguration.MonthNames[this.Month] 
+                        + " " + this.Year + settings.CalendarConfiguration.YearSuffix;
+            }
+        public BalanceTime() : void
+          {
+              // Hours
+              while (this.Hour >= settings.CalendarConfiguration.HoursInDay)
+              {
+                  this.Hour -= settings.CalendarConfiguration.HoursInDay;
+                  this.Day += 1;
+              }
+              while (this.Hour < 0)
+              {
+                  this.Hour += settings.CalendarConfiguration.HoursInDay;
+                  this.Day -= 1;
+              }
+              // Days
+              while (this.Day >= settings.CalendarConfiguration.DaysInWeek)
+              {
+                  this.Day -= settings.CalendarConfiguration.DaysInWeek;
+                  this.Week += 1;
+              }
+              while (this.Day < 0)
+              {
+                  this.Day += settings.CalendarConfiguration.DaysInWeek;
+                  this.Week -= 1;
+              }
+              // Weeks
+              while (this.Week >= settings.CalendarConfiguration.WeeksInMonth)
+              {
+                  this.Week -= settings.CalendarConfiguration.WeeksInMonth;
+                  this.Month += 1;
+              }
+              while (this.Week < 0)
+              {
+                  this.Week += settings.CalendarConfiguration.WeeksInMonth;
+                  this.Month -= 1;
+              }
+              // Months
+              while (this.Month >= settings.CalendarConfiguration.MonthsInYear)
+              {
+                  this.Month -= settings.CalendarConfiguration.MonthsInYear;
+                  this.Year += 1;
+              }
+              while (this.Month < 0)
+              {
+                  this.Month += settings.CalendarConfiguration.MonthsInYear;
+                  this.Year -= 1;
+              }
+
+          }
+}
+      class CalendarConfig
+      {
+          HoursInDay : number;
+          DaysInWeek : number;
+          WeeksInMonth : number;
+          MonthsInYear : number;
+          /** The suffix at the end of the year. i.e: 145PR */
+          YearSuffix : string;
+          /** The start date of the adventure. i.e: When the the adventure begin? */
+          Start : Duration;
+          /** 0 based index of month names. */
+          MonthNames : string[];
+      }
+      /** A calendar that provides specific logic. This is designed to work with the D&D calendar, but could be expanded for other calendar systems  */
+      class AdventureCalendar
+      {
+          public CurrentDuration : Duration = new Duration();
+          public AddHours(hours: number) : void
+          {
+              this.CurrentDuration.Hour += hours;
+              this.CurrentDuration.BalanceTime();
+          }
+          
+          
+
+          /** Progresses the day to the next time period (i.e: Dawn -> Morning). This will progress through to the next day */
+          public ProgressDayPortion() : void
+          {
+              let currentPortion = Duration.GetDayTimePortion(this.CurrentDuration.Hour);
+              this.AddHours(currentPortion.EndHour - this.CurrentDuration.Hour);
+          }
+          /** Sets the current hour in the day to a different time. Will not progress to the next day*/
+          public SetTime(hour: number) : void
+          {
+              this.CurrentDuration.Hour = hour;
+              this.CurrentDuration.BalanceTime();
+          }
+          /** Moves to the next day. If portion is not provided, hour will be set to 6 (default: dawn)*/
+          public StartNextDay(portion?: string) : void
+          {
+              this.CurrentDuration.Day += 1;
+              if (isAssigned(portion))
+              {
+                  for (var i = 0; i < settings.DayTimeRanges.length; i++)
+                    {
+                        let r = settings.DayTimeRanges[i];
+                        if (r.Name.toLowerCase() == portion.toLowerCase())
+                        {
+                            this.CurrentDuration.Hour = r.StartHour;
+                            this.CurrentDuration.BalanceTime();
+                            return;
+                        }
+                    }
+                    throw "Day portion " + portion + " not recognized";
+              }
+              // if we got this far, portion was not declared, so just move to 6am.
+              this.CurrentDuration.Hour = 6;
+              this.CurrentDuration.BalanceTime();
+          }
+          
+
       }
       class CharacterFindResult
         {
@@ -141,6 +342,16 @@ var vb = (function ()
                 sendMessage(this.UserName, text);
             }
         }
+    /** The adventure state is designed to manage the current progress of the adventure. This can be interacted by specific Commands
+     * and other elements of VirtualBard will use this to log more specific information
+     */
+    class AdventureState
+    {
+        public constructor(){
+            this.Calendar = new AdventureCalendar();
+        }
+        public Calendar : AdventureCalendar;
+    }
     /**
      * This is a core Character data container. This stores all of the core character data properties. It is up the the individual
      * reference implementation to store the data in its respecive container.
@@ -238,8 +449,16 @@ var vb = (function ()
                 {
                     var jData = JSON.parse(tag.text);
                     _.extend(refObj.Data, jData);
+                    // We need to enumerate all of the properties defined in the character
+                    for (let pName in refObj.Data)
+                    {
+                        if (refObj.Data.hasOwnProperty(pName))
+                        {
+                            refObj.Data[pName] = p_sysFunctions.getCharacterAttribute(refObj.CharSheet, pName);
+                        }
+                    } 
+                    
                 }
-                
             });
         }
         protected SaveData(data: CharacterData) : void
@@ -258,6 +477,11 @@ var vb = (function ()
             return attribValue;
         }
     }
+    // class CharacterHandoutReference extends CharacterReferenceBase
+    // {
+    //     constructor()
+    // }
+
     class TextPointer {
         value: string;
     }
@@ -697,21 +921,22 @@ var vb = (function ()
           appendBio : function (char, text) {
 
           },
-          whoAction : function (ctx, cmd) {
+          whoAction : function (ctx: UserContext, cmd: MessageCommand) {
+              
               var charName = cmd.Params.join(" ");
-              var r = p_sysFunctions.findCharacterSheet(charName);
+              let r = p_sysFunctions.getCharacterInfo(charName);
               if (isDefined(r))
               {
                   // we have the character
-                  ctx.CurrentChar = r;
-                  ctx.SendChat("Character context set to: " + r.name);
+                  ctx.CurrentChar = r.Char;
+                  ctx.SendChat("Character context set to: " + r.Char.GetAttribute<string>("Name"));
               }
               else
               {
                   ctx.SendChat("No character exists with name: " + charName);
               }
           },
-          classAction: function (ctx, cmd) {
+          classAction: function (ctx: UserContext, cmd: MessageCommand) {
               this.assertCurrentCharDefined(ctx, cmd);
               var realClass = settings.classTypes[cmd.Params[0].toLowerCase()];
               if (!isDefined(realClass))
@@ -724,8 +949,8 @@ var vb = (function ()
               {
                   ctx.Current.SentenceParts.Class = realClass;
               }
-              p_sysFunctions.setCharacterAttribute(ctx.CurrentChar, "class", realClass);
-              p_sysFunctions.setCharacterAttribute(ctx.CurrentChar, "inputClass", cmd.Params[0]);
+              ctx.CurrentChar.SetAttribute("class", realClass);
+              ctx.CurrentChar.SetAttribute("inputClass", cmd.Params[0]);
           },
         metAction: function (ctx: UserContext, cmd: MessageCommand) {
             var charName = cmd.Params.join(" ");
@@ -745,17 +970,17 @@ var vb = (function ()
 
         },
 
-        sexAction: function (ctx, cmd) {
+        sexAction: function (ctx: UserContext, cmd: MessageCommand) {
             this.assertCurrentCharDefined(ctx, cmd);
             var sex = this.parseSex(cmd.Params[0]);
             ctx.Current.SentenceParts.Sex = sex;
-            p_sysFunctions.setCharacterAttribute(ctx.CurrentChar, "sex", sex);
+            ctx.CurrentChar.SetAttribute("sex", sex);
         },
 
-        raceAction: function (ctx, cmd) {
+        raceAction: function (ctx: UserContext, cmd: MessageCommand) {
             this.assertCurrentCharDefined(ctx, cmd);
             ctx.Current.SentenceParts.Race = cmd.Params.join(" ");
-            p_sysFunctions.setCharacterAttribute(ctx.CurrentChar, "race", ctx.Current.SentenceParts.Race);
+            ctx.CurrentChar.SetAttribute("race", ctx.Current.SentenceParts.Race);
         }
         , parseSex : function(text)
         {
@@ -928,7 +1153,7 @@ var vb = (function ()
 
                 
           },
-        getCharacterAttribute: function (char, attribName)
+        getCharacterAttribute: function (char : Character, attribName: string) : any
         {
             assertVariableAssigned(char, "char");
             if (!isDefined(char.id))
@@ -940,7 +1165,7 @@ var vb = (function ()
             return result;
 
         },
-        setCharacterAttribute: function (char, attribName, newValue)
+        setCharacterAttribute: function (char : Character, attribName: string, newValue: any) : void
         {
 
             var attribs = findObjs<Attribute>({_type:"attribute", _characterid:char.id,name:attribName});
