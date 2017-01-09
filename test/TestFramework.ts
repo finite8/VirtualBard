@@ -12,20 +12,83 @@ module Assert
     }
     let passes : number = 0;
     let failures : number = 0;
-    function PrintFailure(testName: string, result: string) : void
+    let scopes : ScopeEntry[] = [];
+    class ScopeEntry
+    {
+        constructor(typeToUse : ScopeType, nameToUse: string)
+        {
+            this.type = typeToUse;
+            this.name = nameToUse;
+        }
+        public type: ScopeType;
+        public name: string;
+    }
+    enum ScopeType
+    {
+        TestClass,
+        TestClassFunction,
+        AssertionDescription
+    }
+    function PrintFailure(result: string) : void
     {
         failures++;
-        console.log("TF: ! " + testName + " !!!FAILED!!!: " + result);
+        console.log("FAIL: " + GetScopedPath() + " REASON: " + result);
     }
-    function ThrowFail(testName: string, result: string) : void
+    function ThrowFail(result: string) : void
     {
         failures++;
-        throw new AssertionFailure("TF: ! " + testName + " !!!FAILED!!!: " + result);
+        
+        var path = GetScopedPath();
+        
+        throw new AssertionFailure("FAIL: " + GetScopedPath() + " REASON: " + result);
+        
     }
-    function PrintPass(testName: string) : void
+    function PrintAssertionPass(assertName: string) : void
+    {
+        PushAssertionNameScope(assertName);
+        PrintPass();
+        scopes.pop();
+    }
+    function PrintAssertionFailure(assertName: string, reason: string) : void
+    {
+        PushAssertionNameScope(assertName);
+        PrintFailure(reason);
+        scopes.pop();
+    }
+    function PrintPass() : void
     {
         passes++;
-        console.log("TF: " + testName + " passed.")
+        console.log("PASS: " + GetScopedPath())
+    }
+    function PushAssertionNameScope(assertionName: string) : void
+    {
+        scopes.push(new ScopeEntry(ScopeType.AssertionDescription, assertionName));
+    }
+    function GetScopedPath() : string
+    {
+        let path : string = "";
+        for (var i = 0; i < scopes.length; i++)
+        {
+            let curr = scopes[i];
+            let next = i + 1 < scopes.length ? scopes[i + 1] : null;
+            if (next == null)
+            {
+                path += curr.name;
+            }
+            else
+            {
+                if (next.type == ScopeType.AssertionDescription)
+                {
+                    path += curr.name + "=>";
+                }
+                else
+                {
+                    path += curr.name + ".";
+                }
+            }
+        }
+        return path;
+
     }
     export function Suite(suiteName: string, delegate: () => void) : void
     {
@@ -43,40 +106,55 @@ module Assert
     }
     export function AreEqual(descript: string, expected: any, actual: any) : void
     {
-        if (expected === actual)
+        PushAssertionNameScope(descript);
+        try
         {
-            PrintPass(descript);
+            if (expected === actual)
+            {           
+                PrintPass();
+            }
+            else
+            {
+                ThrowFail("Expected " + expected + ", Actual " + actual);
+            }
         }
-        else
+        finally
         {
-            ThrowFail(descript, "Expected " + expected + ", Actual " + actual);
+            scopes.pop();
         }
     }
     export function TestClass(classToTest: any) : void
     {
+        scopes.push(new ScopeEntry(ScopeType.TestClass, classToTest.constructor.name));
         let hasErrors = false;
         for (let p in classToTest)
         {
             var i = classToTest[p];
             if (typeof i === "function")
             {
+                scopes.push(new ScopeEntry(ScopeType.TestClassFunction, p));
                 let method : () => void = i;
                 try
                 {
                     method();
-                    PrintPass(p);
+                    
+                    PrintPass();
+                    scopes.pop();
                 }
                 catch (e)
                 {
+                    
                     if (e.constructor.name !== 'AssertionFailure')
                     {
                         hasErrors = true;
-                        PrintFailure(p ,"TEST FAILED - " + p + "\r\n" 
-                        + "Reason: " + JSON.stringify(e));
+                        PrintAssertionFailure(p, JSON.stringify(e));
                     }
+                    scopes.pop();
                 }
+                
             }
         }
+        scopes.pop();
         if (hasErrors)
         {
             throw "Test failed. See previous messages";

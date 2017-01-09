@@ -5,6 +5,20 @@ var __extends = (this && this.__extends) || function (d, b) {
 };
 /// <reference path="Roll20typedef.d.ts" />
 /// <reference path="../typings/globals/underscore/index.d.ts" />
+/*
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+*/
 var VirtualBard;
 (function (VirtualBard) {
     function Setup(completionCallback) {
@@ -943,17 +957,64 @@ var Assert;
     }(Error));
     var passes = 0;
     var failures = 0;
-    function PrintFailure(testName, result) {
+    var scopes = [];
+    var ScopeEntry = (function () {
+        function ScopeEntry(typeToUse, nameToUse) {
+            this.type = typeToUse;
+            this.name = nameToUse;
+        }
+        return ScopeEntry;
+    }());
+    var ScopeType;
+    (function (ScopeType) {
+        ScopeType[ScopeType["TestClass"] = 0] = "TestClass";
+        ScopeType[ScopeType["TestClassFunction"] = 1] = "TestClassFunction";
+        ScopeType[ScopeType["AssertionDescription"] = 2] = "AssertionDescription";
+    })(ScopeType || (ScopeType = {}));
+    function PrintFailure(result) {
         failures++;
-        console.log("TF: ! " + testName + " !!!FAILED!!!: " + result);
+        console.log("FAIL: " + GetScopedPath() + " REASON: " + result);
     }
-    function ThrowFail(testName, result) {
+    function ThrowFail(result) {
         failures++;
-        throw new AssertionFailure("TF: ! " + testName + " !!!FAILED!!!: " + result);
+        var path = GetScopedPath();
+        throw new AssertionFailure("FAIL: " + GetScopedPath() + " REASON: " + result);
     }
-    function PrintPass(testName) {
+    function PrintAssertionPass(assertName) {
+        PushAssertionNameScope(assertName);
+        PrintPass();
+        scopes.pop();
+    }
+    function PrintAssertionFailure(assertName, reason) {
+        PushAssertionNameScope(assertName);
+        PrintFailure(reason);
+        scopes.pop();
+    }
+    function PrintPass() {
         passes++;
-        console.log("TF: " + testName + " passed.");
+        console.log("PASS: " + GetScopedPath());
+    }
+    function PushAssertionNameScope(assertionName) {
+        scopes.push(new ScopeEntry(ScopeType.AssertionDescription, assertionName));
+    }
+    function GetScopedPath() {
+        var path = "";
+        for (var i = 0; i < scopes.length; i++) {
+            var curr = scopes[i];
+            var next = i + 1 < scopes.length ? scopes[i + 1] : null;
+            if (next == null) {
+                path += curr.name;
+            }
+            else {
+                if (next.type == ScopeType.AssertionDescription) {
+                    path += curr.name + "=>";
+                }
+                else {
+                    path += curr.name + ".";
+                }
+            }
+        }
+        return path;
     }
     function Suite(suiteName, delegate) {
         try {
@@ -970,33 +1031,43 @@ var Assert;
     }
     Assert.Suite = Suite;
     function AreEqual(descript, expected, actual) {
-        if (expected === actual) {
-            PrintPass(descript);
+        PushAssertionNameScope(descript);
+        try {
+            if (expected === actual) {
+                PrintPass();
+            }
+            else {
+                ThrowFail("Expected " + expected + ", Actual " + actual);
+            }
         }
-        else {
-            ThrowFail(descript, "Expected " + expected + ", Actual " + actual);
+        finally {
+            scopes.pop();
         }
     }
     Assert.AreEqual = AreEqual;
     function TestClass(classToTest) {
+        scopes.push(new ScopeEntry(ScopeType.TestClass, classToTest.constructor.name));
         var hasErrors = false;
         for (var p in classToTest) {
             var i = classToTest[p];
             if (typeof i === "function") {
+                scopes.push(new ScopeEntry(ScopeType.TestClassFunction, p));
                 var method = i;
                 try {
                     method();
-                    PrintPass(p);
+                    PrintPass();
+                    scopes.pop();
                 }
                 catch (e) {
                     if (e.constructor.name !== 'AssertionFailure') {
                         hasErrors = true;
-                        PrintFailure(p, "TEST FAILED - " + p + "\r\n"
-                            + "Reason: " + JSON.stringify(e));
+                        PrintAssertionFailure(p, JSON.stringify(e));
                     }
+                    scopes.pop();
                 }
             }
         }
+        scopes.pop();
         if (hasErrors) {
             throw "Test failed. See previous messages";
         }
@@ -1019,6 +1090,21 @@ var VirtualBard;
             this.TestCalendar = function () {
                 var c = new VirtualBard.AdventureCalendar();
                 Assert.AreEqual("DisplayText", "Midnight 1st of Hammer 0PR", c.CurrentDuration.GetDisplayText());
+                c.AddHours(1);
+                Assert.AreEqual("DisplayText + 1hr", "Moondark 1st of Hammer 0PR", c.CurrentDuration.GetDisplayText());
+                c.AddHours(24);
+                Assert.AreEqual("DisplayText + 24hr", "Moondark 2nd of Hammer 0PR", c.CurrentDuration.GetDisplayText());
+                c.SetTime(0);
+                Assert.AreEqual("SetTime to 0", "Midnight 2nd of Hammer 0PR", c.CurrentDuration.GetDisplayText());
+                c.StartNextDay();
+                Assert.AreEqual("StartNextDay with default", "Dawn 3rd of Hammer 0PR", c.CurrentDuration.GetDisplayText());
+                c.StartNextDay("Sunset");
+                Assert.AreEqual("Sunset with default", "Sunset 4th of Hammer 0PR", c.CurrentDuration.GetDisplayText());
+                Assert.AreEqual("Sunset Hour", 18, c.CurrentDuration.Hour);
+                c.ProgressDayPortion();
+                Assert.AreEqual("ProgressDayPortion", "Evening 4th of Hammer 0PR", c.CurrentDuration.GetDisplayText());
+                c.AddHours(-24);
+                Assert.AreEqual("Display Text - 24hr", "Evening 3rd of Hammer 0PR", c.CurrentDuration.GetDisplayText());
             };
         }
         return FunctionTests;

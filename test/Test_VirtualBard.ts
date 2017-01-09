@@ -16,6 +16,21 @@ namespace VirtualBard {
         TestCalendar = function () {
             let c = new VirtualBard.AdventureCalendar();
             Assert.AreEqual("DisplayText", "Midnight 1st of Hammer 0PR", c.CurrentDuration.GetDisplayText());
+            c.AddHours(1);
+            Assert.AreEqual("DisplayText + 1hr", "Moondark 1st of Hammer 0PR", c.CurrentDuration.GetDisplayText());
+            c.AddHours(24);
+            Assert.AreEqual("DisplayText + 24hr", "Moondark 2nd of Hammer 0PR", c.CurrentDuration.GetDisplayText());
+            c.SetTime(0);
+            Assert.AreEqual("SetTime to 0", "Midnight 2nd of Hammer 0PR", c.CurrentDuration.GetDisplayText());
+            c.StartNextDay();
+            Assert.AreEqual("StartNextDay with default", "Dawn 3rd of Hammer 0PR", c.CurrentDuration.GetDisplayText());
+            c.StartNextDay("Sunset")
+            Assert.AreEqual("Sunset with default", "Sunset 4th of Hammer 0PR", c.CurrentDuration.GetDisplayText());
+            Assert.AreEqual("Sunset Hour", 18, c.CurrentDuration.Hour);
+            c.ProgressDayPortion();
+            Assert.AreEqual("ProgressDayPortion", "Evening 4th of Hammer 0PR", c.CurrentDuration.GetDisplayText());
+            c.AddHours(-24);
+            Assert.AreEqual("Display Text - 24hr", "Evening 3rd of Hammer 0PR", c.CurrentDuration.GetDisplayText());
         }
     }
     Assert.TestClass(new FunctionTests());
