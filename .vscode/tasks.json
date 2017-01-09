@@ -2,10 +2,10 @@
 	// See http://go.microsoft.com/fwlink/?LinkId=733558
 	// for the documentation about the tasks.json format
 	"version": "0.1.0",
-	"command": "tsc",
+	"command": "cmd",
 	"isShellCommand": true,
 	//"args": ["${file}"], 
-	"args": ["--target","ES5"], 
+	"args": ["/C"], 
 	"showOutput": "always",
 	"problemMatcher": "$tsc",
 	"suppressTaskName": false,
@@ -15,14 +15,15 @@
 			"isBuildCommand": true,
 			"suppressTaskName": true,
 			"taskName": "Build VirtualBard",
-			"args": ["src/VirtualBard", "src/VirtualBard_main",  "--outFile", "bin/VirtualBard.js"
+			"args": ["scripts\\build.bat"
 				
 			]
 		},
 		{
+			"isTestCommand": true,
 			"suppressTaskName": true,
-			"taskName": "Build Test",
-			"args": ["src/VirtualBard","test/TestFramework", "test/Test_VirtualBard",  "--outFile", "bin/VirtualBard_Test.js"]
+			"taskName": "Build and Run Tests",
+			"args": ["scripts\\test.bat"]
 		}
 	]
 
