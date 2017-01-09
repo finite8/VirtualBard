@@ -113,10 +113,11 @@ namespace VirtualBard {
         /** Returns the equivlanet DatTimeRange for a given hour of the day */
         public static GetDayTimePortion(hour: number): DayTimeRange {
             let useStartHour = hour == 24 ? 0 : hour;
-            let useEndHour = hour == 0 ? 24 : hour;
+            
+            
             for (var i = 0; i < settings.DayTimeRanges.length; i++) {
                 let r = settings.DayTimeRanges[i];
-                if (useStartHour >= r.StartHour && (useEndHour < r.EndHour || r.StartHour == r.EndHour)) {
+                if ((useStartHour >= r.StartHour) && (hour < r.EndHour || r.StartHour == r.EndHour)) {
                     return r;
                 }
             }
@@ -193,7 +194,7 @@ namespace VirtualBard {
         MonthNames: string[];
     }
     /** A calendar that provides specific logic. This is designed to work with the D&D calendar, but could be expanded for other calendar systems  */
-    class AdventureCalendar {
+    export class AdventureCalendar {
         public CurrentDuration: Duration = new Duration();
         public AddHours(hours: number): void {
             this.CurrentDuration.Hour += hours;
@@ -483,7 +484,7 @@ namespace VirtualBard {
         var match = r.exec(baseText);
 
         if (match == null) {
-            log("no match");
+            //log("no match");
             return null;
         }
 
@@ -494,7 +495,7 @@ namespace VirtualBard {
                 if (attributes.hasOwnProperty(p)) {
                     var attribReg = new RegExp(p + "=\"" + attributes[p] + "\"");
                     if (attribReg.exec(match[2]) == null) {
-                        log("missing attribute");
+                        //log("missing attribute");
                     }
                 }
             }
@@ -521,51 +522,7 @@ namespace VirtualBard {
         result.innerStartIndex = match.index + match[1].length + offset;
         result.innerEndIndex = (match.index + match[0].length - match[4].length) + offset;
         result.endIndex = match.index + match[0].length + offset;
-
-
-
-
-
-        // var result = {
-        //     originalText : useOriginalText,
-        //     tagAttributes : match[2],
-        //     tag : tag,
-        //     endTag : match[4],
-        //     text : match[3],
-        //     startIndex : match.index + offset,
-        //     innerStartIndex : match.index + match[1].length + offset,
-        //     innerEndIndex : (match.index + match[0].length - match[4].length) + offset,
-        //     endIndex : match.index + match[0].length + offset,
-        //     getText : function () {return this.originalText.value;},
-        //     findTag : function(subTag, subAttributes) {
-        //         return findTag(result.text, subTag, subAttributes, result);
-        //     },
-        //     appendText : function(textToAppend) {
-        //         var txtToModify = this.originalText.value;
-        //         this.originalText.value = txtToModify.slice(0, this.innerEndIndex) + textToAppend + txtToModify.slice(this.innerEndIndex)
-        //         this.innerEndIndex += textToAppend.length;
-        //         this.endIndex = this.innerEndIndex + endTag.length;
-        //         this.text = this.originalText.value.substring(this.innerStartIndex, this.innerEndIndex);
-        //         return result;
-        //     },
-        //     setText : function(textToSet) {
-        //         var txtToModify = this.originalText.value;
-        //         this.originalText.value = txtToModify.slice(0, this.innerStartIndex) + textToSet + txtToModify.slice(this.innerEndIndex)
-        //         this.innerEndIndex = this.innerStartIndex + textToSet.length;
-        //         this.endIndex = this.innerEndIndex + endTag.length;
-        //         this.text = this.originalText.value.substring(this.innerStartIndex, this.innerEndIndex);
-        //         return result;
-        //     },
-        //     prependText : function(textToPrepend) {
-        //         var txtToModify = this.originalText.value;
-        //         this.originalText.value = txtToModify.slice(0, this.innerStartIndex) + textToPrepend + txtToModify.slice(this.innerStartIndex)
-        //         this.innerEndIndex += textToPrepend.length;
-        //         this.endIndex = this.innerEndIndex + endTag.length;
-        //         this.text = this.originalText.value.substring(this.innerStartIndex, this.innerEndIndex);
-        //         return result;
-        //     }
-        // };
-        log(result);
+        //log(result);
         return result;
 
     }

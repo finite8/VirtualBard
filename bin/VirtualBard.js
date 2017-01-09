@@ -101,10 +101,9 @@ var VirtualBard;
         /** Returns the equivlanet DatTimeRange for a given hour of the day */
         Duration.GetDayTimePortion = function (hour) {
             var useStartHour = hour == 24 ? 0 : hour;
-            var useEndHour = hour == 0 ? 24 : hour;
             for (var i = 0; i < settings.DayTimeRanges.length; i++) {
                 var r = settings.DayTimeRanges[i];
-                if (useStartHour >= r.StartHour && (useEndHour < r.EndHour || r.StartHour == r.EndHour)) {
+                if ((useStartHour >= r.StartHour) && (hour < r.EndHour || r.StartHour == r.EndHour)) {
                     return r;
                 }
             }
@@ -210,6 +209,7 @@ var VirtualBard;
         };
         return AdventureCalendar;
     }());
+    VirtualBard.AdventureCalendar = AdventureCalendar;
     var CharacterFindResult = (function () {
         function CharacterFindResult() {
         }
