@@ -91,3 +91,9 @@ declare function getAttrByName(character_id: string, attribute_name: string, val
  * Examples: "chat:message" accepts a callback that takes a string as a parameter for chat input
  */
 declare function on(eventType: string, callback: (...args: any[]) => any): void;
+/**
+ * 
+ * Source: https://wiki.roll20.net/API:Objects#stateg
+ * 
+ */
+declare var state : any;

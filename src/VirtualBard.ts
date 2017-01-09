@@ -275,6 +275,23 @@ namespace VirtualBard {
         }
         public Calendar: AdventureCalendar;
     }
+
+    let CurrentState : AdventureState;
+    function LoadState() : void
+    {
+        CurrentState = new AdventureState();
+        if (isAssigned(state.VirtualBardState))
+        {
+            _.extend(CurrentState, state.VirtualBardState);
+        }
+    }
+
+    function SaveState() : void
+    {
+        state.VirtualBardState = CurrentState;
+    }
+
+
     /**
      * This is a core Character data container. This stores all of the core character data properties. It is up the the individual
      * reference implementation to store the data in its respecive container.
