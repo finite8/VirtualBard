@@ -28,9 +28,9 @@ Eventually, i will split this VSCode project out into its own template for anyon
 ### Other Platforms
 Not supported. I wanted to avoid platform specific stuff, but as VSCode doesn't support multiple steps in a task, i had to use batch files to get the behaviour i wanted.
 
+### Enjoy
 
-
-Enjoy. I haven't tested these steps so let me know if it doesn't work or there are some modifications to the steps needed. If it all works right, you should be able to do the following:
+I haven't tested these steps so let me know if it doesn't work or there are some modifications to the steps needed. If it all works right, you should be able to do the following:
 * Ctrl+Shift+B will build the project and place all the files to go to roll20 in the release folder
 * Ctrl+Shift+T will build and execute the tests.
 
