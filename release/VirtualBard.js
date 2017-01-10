@@ -37,9 +37,9 @@ var VirtualBard;
                         }
                     }
                     if (setData) {
-                        settings = DefaultSettings();
+                        VirtualBard.settings = DefaultSettings();
                         setTimeout(function () {
-                            var notes = JSON.stringify(settings);
+                            var notes = JSON.stringify(VirtualBard.settings);
                             log("New data to assign: " + notes);
                             settingsHandout.set("gmnotes", "<Settings>" + notes + "</Settings>");
                             if (isAssigned(completionCallback)) {
@@ -49,7 +49,7 @@ var VirtualBard;
                     }
                     else {
                         log("Existing: " + JSON.stringify(loadedSettings));
-                        settings = _.extend(DefaultSettings(), loadedSettings);
+                        VirtualBard.settings = _.extend(DefaultSettings(), loadedSettings);
                         if (isAssigned(completionCallback)) {
                             completionCallback();
                         }
@@ -59,7 +59,7 @@ var VirtualBard;
                 catch (err) {
                     // we dont REALLY care about the error. we will however use it to indicate some kind of json error
                     log("WARNING! Configuration error. Failed to parse custom settings data. Error: " + err.message);
-                    settings = DefaultSettings();
+                    VirtualBard.settings = DefaultSettings();
                 }
             });
         });
@@ -95,12 +95,12 @@ var VirtualBard;
         return DayTimeRange;
     }());
     var Duration = (function () {
-        function Duration() {
-            this.Year = 0;
-            this.Month = 0;
-            this.Week = 0;
-            this.Day = 0;
-            this.Hour = 0;
+        function Duration(basis) {
+            this.Year = basis && basis.Year || 0;
+            this.Month = basis && basis.Month || 0;
+            this.Week = basis && basis.Week || 0;
+            this.Day = basis && basis.Day || 0;
+            this.Hour = basis && basis.Hour || 0;
         }
         Duration.nth = function (d) {
             if (d > 3 && d < 21)
@@ -115,8 +115,8 @@ var VirtualBard;
         /** Returns the equivlanet DatTimeRange for a given hour of the day */
         Duration.GetDayTimePortion = function (hour) {
             var useStartHour = hour == 24 ? 0 : hour;
-            for (var i = 0; i < settings.DayTimeRanges.length; i++) {
-                var r = settings.DayTimeRanges[i];
+            for (var i = 0; i < VirtualBard.settings.DayTimeRanges.length; i++) {
+                var r = VirtualBard.settings.DayTimeRanges[i];
                 if ((useStartHour >= r.StartHour) && (hour < r.EndHour || r.StartHour == r.EndHour)) {
                     return r;
                 }
@@ -129,56 +129,104 @@ var VirtualBard;
             this.Week += other.Week;
             this.Month += other.Month;
             this.Year += other.Year;
+            this.BalanceTime();
         };
         Duration.prototype.GetDisplayText = function () {
-            var port = Duration.GetDayTimePortion(this.Hour);
-            var diff = this.Hour - port.StartHour;
-            var hourPortionText = diff == 0 ? "" : diff + " hours after ";
-            return "" + hourPortionText + port.Name
-                + " " + (this.Day + 1) + Duration.nth(this.Day + 1)
-                + " of " + settings.CalendarConfiguration.MonthNames[this.Month]
-                + " " + this.Year + settings.CalendarConfiguration.YearSuffix;
+            var parts = [];
+            if (this.Hour > 0) {
+                var part = this.Hour + " hour";
+                if (this.Hour > 1) {
+                    part += "s";
+                }
+                parts.push(part);
+            }
+            if (this.Day > 0) {
+                var part = this.Day + " day";
+                if (this.Day > 1) {
+                    part += "s";
+                }
+                parts.push(part);
+            }
+            if (this.Week > 0) {
+                var part = this.Week + " week";
+                if (this.Week > 1) {
+                    part += "s";
+                }
+                parts.push(part);
+            }
+            if (this.Month > 0) {
+                var part = this.Month + " month";
+                if (this.Month > 1) {
+                    part += "s";
+                }
+                parts.push(part);
+            }
+            if (this.Year > 0) {
+                var part = this.Year + " year";
+                if (this.Year > 1) {
+                    part += "s";
+                }
+                parts.push(part);
+            }
+            if (parts.length == 0) {
+                return "Beginning";
+            }
+            else {
+                var retString = "";
+                // we need to add commas inbetween all the parts, except for the last one. that gets an "and"
+                for (var i = 0; i < parts.length; i++) {
+                    retString += parts[i];
+                    if (i < parts.length - 2) {
+                        retString += ", ";
+                    }
+                    else if (i == parts.length - 2) {
+                        retString += " and ";
+                    }
+                }
+                return retString;
+            }
         };
         Duration.prototype.BalanceTime = function () {
             // Hours
-            while (this.Hour >= settings.CalendarConfiguration.HoursInDay) {
-                this.Hour -= settings.CalendarConfiguration.HoursInDay;
+            while (this.Hour >= VirtualBard.settings.CalendarConfiguration.HoursInDay) {
+                this.Hour -= VirtualBard.settings.CalendarConfiguration.HoursInDay;
                 this.Day += 1;
             }
             while (this.Hour < 0) {
-                this.Hour += settings.CalendarConfiguration.HoursInDay;
+                this.Hour += VirtualBard.settings.CalendarConfiguration.HoursInDay;
                 this.Day -= 1;
             }
             // Days
-            while (this.Day >= settings.CalendarConfiguration.DaysInWeek) {
-                this.Day -= settings.CalendarConfiguration.DaysInWeek;
+            while (this.Day >= VirtualBard.settings.CalendarConfiguration.DaysInWeek) {
+                this.Day -= VirtualBard.settings.CalendarConfiguration.DaysInWeek;
                 this.Week += 1;
             }
             while (this.Day < 0) {
-                this.Day += settings.CalendarConfiguration.DaysInWeek;
+                this.Day += VirtualBard.settings.CalendarConfiguration.DaysInWeek;
                 this.Week -= 1;
             }
             // Weeks
-            while (this.Week >= settings.CalendarConfiguration.WeeksInMonth) {
-                this.Week -= settings.CalendarConfiguration.WeeksInMonth;
+            while (this.Week >= VirtualBard.settings.CalendarConfiguration.WeeksInMonth) {
+                this.Week -= VirtualBard.settings.CalendarConfiguration.WeeksInMonth;
                 this.Month += 1;
             }
             while (this.Week < 0) {
-                this.Week += settings.CalendarConfiguration.WeeksInMonth;
+                this.Week += VirtualBard.settings.CalendarConfiguration.WeeksInMonth;
                 this.Month -= 1;
             }
             // Months
-            while (this.Month >= settings.CalendarConfiguration.MonthsInYear) {
-                this.Month -= settings.CalendarConfiguration.MonthsInYear;
+            while (this.Month >= VirtualBard.settings.CalendarConfiguration.MonthsInYear) {
+                this.Month -= VirtualBard.settings.CalendarConfiguration.MonthsInYear;
                 this.Year += 1;
             }
             while (this.Month < 0) {
-                this.Month += settings.CalendarConfiguration.MonthsInYear;
+                this.Month += VirtualBard.settings.CalendarConfiguration.MonthsInYear;
                 this.Year -= 1;
             }
         };
         return Duration;
     }());
+    VirtualBard.Duration = Duration;
     var CalendarConfig = (function () {
         function CalendarConfig() {
         }
@@ -192,6 +240,18 @@ var VirtualBard;
         AdventureCalendar.prototype.AddHours = function (hours) {
             this.CurrentDuration.Hour += hours;
             this.CurrentDuration.BalanceTime();
+        };
+        AdventureCalendar.prototype.GetDisplayText = function () {
+            var useDuration = new Duration(VirtualBard.settings.CalendarConfiguration.Start);
+            useDuration.AddDuration(this.CurrentDuration);
+            var port = Duration.GetDayTimePortion(useDuration.Hour);
+            var diff = useDuration.Hour - port.StartHour;
+            var hourPortionText = diff == 0 ? "" : diff + " hours after ";
+            var dayPart = (useDuration.Day + 1) + (useDuration.Week * VirtualBard.settings.CalendarConfiguration.DaysInWeek);
+            return "" + hourPortionText + port.Name
+                + " " + (dayPart) + Duration.nth(dayPart)
+                + " of " + VirtualBard.settings.CalendarConfiguration.MonthNames[useDuration.Month]
+                + " " + useDuration.Year + VirtualBard.settings.CalendarConfiguration.YearSuffix;
         };
         /** Progresses the day to the next time period (i.e: Dawn -> Morning). This will progress through to the next day */
         AdventureCalendar.prototype.ProgressDayPortion = function () {
@@ -207,8 +267,8 @@ var VirtualBard;
         AdventureCalendar.prototype.StartNextDay = function (portion) {
             this.CurrentDuration.Day += 1;
             if (isAssigned(portion)) {
-                for (var i = 0; i < settings.DayTimeRanges.length; i++) {
-                    var r = settings.DayTimeRanges[i];
+                for (var i = 0; i < VirtualBard.settings.DayTimeRanges.length; i++) {
+                    var r = VirtualBard.settings.DayTimeRanges[i];
                     if (r.Name.toLowerCase() == portion.toLowerCase()) {
                         this.CurrentDuration.Hour = r.StartHour;
                         this.CurrentDuration.BalanceTime();
@@ -454,7 +514,7 @@ var VirtualBard;
         };
     }
     ;
-    var settings = DefaultSettings();
+    VirtualBard.settings = DefaultSettings();
     /**
      *  returns a object that describes the results. The returned object supports additional searcing and text modification functions.
      */
@@ -734,7 +794,7 @@ var VirtualBard;
         },
         classAction: function (ctx, cmd) {
             this.assertCurrentCharDefined(ctx, cmd);
-            var realClass = settings.classTypes[cmd.Params[0].toLowerCase()];
+            var realClass = VirtualBard.settings.classTypes[cmd.Params[0].toLowerCase()];
             if (!isDefined(realClass)) {
                 ctx.SendChat("Class " + cmd.Params[0] + " could not be resolved to a real class. Character sheet will resort to a default instead");
                 ctx.Current.SentenceParts.Class = cmd.Params[0];
@@ -770,7 +830,7 @@ var VirtualBard;
             ctx.CurrentChar.SetAttribute("race", ctx.Current.SentenceParts.Race);
         },
         parseSex: function (text) {
-            var sex = settings.sexTypes[text.toLowerCase()];
+            var sex = VirtualBard.settings.sexTypes[text.toLowerCase()];
             if (typeof sex == 'undefined') {
                 throw text + " could not be interpreted as a valid sex";
             }
@@ -810,9 +870,9 @@ var VirtualBard;
             if (typeof this.journalHandout !== 'undefined') {
                 return this.journalHandout;
             }
-            var handouts = findObjs({ _type: "handout", name: settings.AdventureLog });
+            var handouts = findObjs({ _type: "handout", name: VirtualBard.settings.AdventureLog });
             if (handouts.length == 0) {
-                var h = createObj("handout", { name: settings.AdventureLog, inplayerjournals: "all", controlledby: "all", notes: "" });
+                var h = createObj("handout", { name: VirtualBard.settings.AdventureLog, inplayerjournals: "all", controlledby: "all", notes: "" });
                 this.journalHandout = h;
             }
             else {
@@ -867,8 +927,8 @@ var VirtualBard;
          * Resolves the Character info reference. This will return different things based on the mode of operation
          */
         getCharacterInfo: function (charName) {
-            for (var i = 0; i < settings.CharacterResolutionOrder.length; i++) {
-                var m = settings.CharacterResolutionOrder[i];
+            for (var i = 0; i < VirtualBard.settings.CharacterResolutionOrder.length; i++) {
+                var m = VirtualBard.settings.CharacterResolutionOrder[i];
                 log("Attmepting to resolve character '" + charName + "' using mode '" + CharacterMode[m.mode] + "'");
                 switch (m.mode) {
                     case CharacterMode.Sheet:

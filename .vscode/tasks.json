@@ -14,7 +14,7 @@
 		{
 			"isBuildCommand": true,
 			"suppressTaskName": true,
-			"taskName": "Build VirtualBard",
+			"taskName": "Build and Prepare release",
 			"args": ["scripts\\build.bat"
 				
 			]

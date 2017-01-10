@@ -14,6 +14,9 @@
     You should have received a copy of the GNU General Public License
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
+
+
+
 namespace VirtualBard {
 
     function Setup(completionCallback: () => void): void {
@@ -39,6 +42,7 @@ namespace VirtualBard {
                             var notes = JSON.stringify(settings);
                             log("New data to assign: " + notes);
                             settingsHandout.set("gmnotes", "<Settings>" + notes + "</Settings>");
+                            LoadState();
                             if (isAssigned(completionCallback)) {
                                 completionCallback();
                             }
@@ -47,7 +51,7 @@ namespace VirtualBard {
                     else {
                         log("Existing: " + JSON.stringify(loadedSettings));
                         settings = _.extend(DefaultSettings(), loadedSettings);
-
+                        LoadState();
                         if (isAssigned(completionCallback)) {
                             completionCallback();
                         }
@@ -146,6 +150,23 @@ namespace VirtualBard {
             this.Month += other.Month;
             this.Year += other.Year;
             this.BalanceTime();
+        }
+        /**
+         * Subtracts one duration from another. Note: will not work well with negative results
+         * @param {Duration} from: The Duration to have time taken away from
+         * @param {Duration} take: The amount of time to take 
+         * i.e.: 5 - 1 = from - take = 4
+         */
+        public static GetDifference(from: Duration, take: Duration) : Duration
+        {
+            let toReturn = new Duration(from);
+            toReturn.Day -= take.Day;
+            toReturn.Hour -= take.Hour;
+            toReturn.Week -= take.Week;
+            toReturn.Month -= take.Month;
+            toReturn.Year -= take.Year;
+            toReturn.BalanceTime();
+            return toReturn;
         }
 
         public GetDisplayText() : string {
@@ -350,18 +371,108 @@ namespace VirtualBard {
             sendMessage(this.UserName, text);
         }
     }
+    /**
+     * The location info provides an individual entry for location history.
+     */
+    class LocationInfo
+    {
+        /** The duration that the location entry was started at. It can use this and difference it with current duration to get total time at the location. */
+        ArrivalDuration : Duration; 
+        /** Name of the location */
+        Name: string;
+        /** The parent location. i.e: If in "The Sewers", "Baldurs Gate" might be the parent */
+        ParentLocation: LocationInfo;
+        /** Gets the total duration at this location (current time minus time of arrival) */
+        public GetDuration() : Duration
+        {
+            return Duration.GetDifference(CurrentState.Calendar.CurrentDuration,this.ArrivalDuration);
+        }
+    }
+
+    class LocationManager
+    {
+        constructor ()
+        {
+            this.CurrentLocation = new LocationInfo();
+            this.CurrentLocation.Name = "An unknown location";
+            this.CurrentLocation.ArrivalDuration = new Duration();
+        }
+        
+        public CurrentLocation: LocationInfo;
+        /** Returns a simple path of the current location. Useful for informative purposes */
+        public GetLocationPath() : string
+        {
+            let loc = this.CurrentLocation;
+            if (!isAssigned(loc))
+            {
+                return "Location not specified";
+            }
+            else
+            {
+                let retStr = loc.Name;
+                while (loc != null)
+                {
+                    loc = loc.ParentLocation;
+                    if (loc != null)
+                    {
+                        retStr += `<=${loc.Name}`;
+                    }
+                }
+                return retStr;
+            }
+        }
+        public NewLocation(locationName: string) : void
+        {
+            this.CurrentLocation = new LocationInfo();
+            this.CurrentLocation.ArrivalDuration = new Duration(CurrentState.Calendar.CurrentDuration);
+            this.CurrentLocation.Name = locationName;
+        }
+        public EnterSubLocation(locationName: string) : void
+        {
+            if (!isAssigned(this.CurrentLocation))
+            {
+                throw "Cannot enter a sub location without specifing an overall location first";
+            }
+            else
+            {
+                let newLoc = new LocationInfo();
+                newLoc.ArrivalDuration = new Duration(CurrentState.Calendar.CurrentDuration);
+                newLoc.Name = locationName;
+                newLoc.ParentLocation = this.CurrentLocation;
+                this.CurrentLocation = newLoc;
+            }
+        }
+        /** 
+         * Leaves a sub location if possible, throws otherwise.
+         * @returns {LocationInfo} The name of the sub location that was left.
+         */
+        public LeaveSubLocation() : LocationInfo
+        {
+            if (!isAssigned(this.CurrentLocation) || (this.CurrentLocation.ParentLocation == null))
+            {
+                throw "Cannot leave a sub location without being in one first";
+            }
+            let oldLoc = this.CurrentLocation;
+            this.CurrentLocation = this.CurrentLocation.ParentLocation;
+            return oldLoc;
+
+        }
+    }
+    
     /** The adventure state is designed to manage the current progress of the adventure. This can be interacted by specific Commands
      * and other elements of VirtualBard will use this to log more specific information
      */
     class AdventureState {
         public constructor() {
             this.Calendar = new AdventureCalendar();
+            this.Location = new LocationManager();
         }
         public Calendar: AdventureCalendar;
+        public Location: LocationManager;
     }
 
-    let CurrentState : AdventureState;
-    function LoadState() : void
+    export let CurrentState : AdventureState;
+    export function LoadState() : void
     {
         CurrentState = new AdventureState();
         if (isAssigned(state.VirtualBardState))
@@ -645,7 +756,7 @@ namespace VirtualBard {
     function isDefined(obj) {
         return typeof obj !== 'undefined';
     }
-    function isAssigned(obj) {
+    export function isAssigned(obj) {
         return obj != null && typeof obj !== 'undefined';
     }
     function assertVariableAssigned(obj, varName) {
@@ -1120,6 +1231,7 @@ namespace VirtualBard {
                     var ctx = getUserContext(msg);
                     // we have a command and a context to work with. lets start processing.
                     process(ctx, r);
+                    SaveState();
                 }
                 //}
                 //catch (err)

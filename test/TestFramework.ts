@@ -92,13 +92,16 @@ module Assert
     }
     export function Suite(suiteName: string, delegate: () => void) : void
     {
+        console.log(`=== Starting test suite ${GetScopedPath()}`);
         try {
             delegate();
+            console.log(`=== Test suite ${GetScopedPath()} Passed`)
+
         } catch (error) {
             if (typeof error !== 'AssertionFailure')
             {
                 let err : Error = error;
-                throw "Suite '" + suiteName + "' Failed.\r\n" 
+                throw "!!! Suite '" + GetScopedPath() + "' Failed.\r\n" 
                 + "Reason: " + err.message + "\r\n"
                 + "StackTrace: " + err.stack;
             }
@@ -136,9 +139,7 @@ module Assert
                 let method : () => void = i;
                 try
                 {
-                    method();
-                    
-                    PrintPass();
+                    Suite(p, method);
                     scopes.pop();
                 }
                 catch (e)

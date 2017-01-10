@@ -22,7 +22,7 @@ var __extends = (this && this.__extends) || function (d, b) {
 var VirtualBard;
 (function (VirtualBard) {
     function Setup(completionCallback) {
-        on("ready", function () {
+        VirtualBard.on("ready", function () {
             var settingsHandout = p_sysFunctions.getHandout("VBSettings", true, false);
             settingsHandout.get("gmnotes", function (d) {
                 try {
@@ -42,6 +42,7 @@ var VirtualBard;
                             var notes = JSON.stringify(VirtualBard.settings);
                             VirtualBard.log("New data to assign: " + notes);
                             settingsHandout.set("gmnotes", "<Settings>" + notes + "</Settings>");
+                            LoadState();
                             if (isAssigned(completionCallback)) {
                                 completionCallback();
                             }
@@ -50,6 +51,7 @@ var VirtualBard;
                     else {
                         VirtualBard.log("Existing: " + JSON.stringify(loadedSettings));
                         VirtualBard.settings = _.extend(DefaultSettings(), loadedSettings);
+                        LoadState();
                         if (isAssigned(completionCallback)) {
                             completionCallback();
                         }
@@ -130,6 +132,22 @@ var VirtualBard;
             this.Month += other.Month;
             this.Year += other.Year;
             this.BalanceTime();
+        };
+        /**
+         * Subtracts one duration from another. Note: will not work well with negative results
+         * @param {Duration} from: The Duration to have time taken away from
+         * @param {Duration} take: The amount of time to take
+         * i.e.: 5 - 1 = from - take = 4
+         */
+        Duration.GetDifference = function (from, take) {
+            var toReturn = new Duration(from);
+            toReturn.Day -= take.Day;
+            toReturn.Hour -= take.Hour;
+            toReturn.Week -= take.Week;
+            toReturn.Month -= take.Month;
+            toReturn.Year -= take.Year;
+            toReturn.BalanceTime();
+            return toReturn;
         };
         Duration.prototype.GetDisplayText = function () {
             var parts = [];
@@ -299,24 +317,88 @@ var VirtualBard;
         };
         return UserContext;
     }());
+    /**
+     * The location info provides an individual entry for location history.
+     */
+    var LocationInfo = (function () {
+        function LocationInfo() {
+        }
+        /** Gets the total duration at this location (current time minus time of arrival) */
+        LocationInfo.prototype.GetDuration = function () {
+            return Duration.GetDifference(VirtualBard.CurrentState.Calendar.CurrentDuration, this.ArrivalDuration);
+        };
+        return LocationInfo;
+    }());
+    var LocationManager = (function () {
+        function LocationManager() {
+        }
+        /** Returns a simple path of the current location. Useful for informative purposes */
+        LocationManager.prototype.GetLocationPath = function () {
+            var loc = this.CurrentLocation;
+            if (!isAssigned(loc)) {
+                return "Location not specified";
+            }
+            else {
+                var retStr = loc.Name;
+                while (loc != null) {
+                    loc = loc.ParentLocation;
+                    if (loc != null) {
+                        retStr += "<=" + loc.Name;
+                    }
+                }
+                return retStr;
+            }
+        };
+        LocationManager.prototype.NewLocation = function (locationName) {
+            this.CurrentLocation = new LocationInfo();
+            this.CurrentLocation.ArrivalDuration = new Duration(VirtualBard.CurrentState.Calendar.CurrentDuration);
+            this.CurrentLocation.Name = locationName;
+        };
+        LocationManager.prototype.EnterSubLocation = function (locationName) {
+            if (!isAssigned(this.CurrentLocation)) {
+                throw "Cannot enter a sub location without specifing an overall location first";
+            }
+            else {
+                var newLoc = new LocationInfo();
+                newLoc.ArrivalDuration = new Duration(VirtualBard.CurrentState.Calendar.CurrentDuration);
+                newLoc.Name = locationName;
+                newLoc.ParentLocation = this.CurrentLocation;
+                this.CurrentLocation = newLoc;
+            }
+        };
+        /**
+         * Leaves a sub location if possible, throws otherwise.
+         * @returns {LocationInfo} The name of the sub location that was left.
+         */
+        LocationManager.prototype.LeaveSubLocation = function () {
+            if (!isAssigned(this.CurrentLocation) || (this.CurrentLocation.ParentLocation == null)) {
+                throw "Cannot leave a sub location without being in one first";
+            }
+            var oldLoc = this.CurrentLocation;
+            this.CurrentLocation = this.CurrentLocation.ParentLocation;
+            return oldLoc;
+        };
+        return LocationManager;
+    }());
     /** The adventure state is designed to manage the current progress of the adventure. This can be interacted by specific Commands
      * and other elements of VirtualBard will use this to log more specific information
      */
     var AdventureState = (function () {
         function AdventureState() {
             this.Calendar = new AdventureCalendar();
+            this.Location = new LocationManager();
         }
         return AdventureState;
     }());
-    var CurrentState;
     function LoadState() {
-        CurrentState = new AdventureState();
-        if (isAssigned(state.VirtualBardState)) {
-            _.extend(CurrentState, state.VirtualBardState);
+        VirtualBard.CurrentState = new AdventureState();
+        if (isAssigned(VirtualBard.state.VirtualBardState)) {
+            _.extend(VirtualBard.CurrentState, VirtualBard.state.VirtualBardState);
         }
     }
+    VirtualBard.LoadState = LoadState;
     function SaveState() {
-        state.VirtualBardState = CurrentState;
+        VirtualBard.state.VirtualBardState = VirtualBard.CurrentState;
     }
     /**
      * This is a core Character data container. This stores all of the core character data properties. It is up the the individual
@@ -567,6 +649,7 @@ var VirtualBard;
     function isAssigned(obj) {
         return obj != null && typeof obj !== 'undefined';
     }
+    VirtualBard.isAssigned = isAssigned;
     function assertVariableAssigned(obj, varName) {
         if (!isAssigned(obj)) {
             if (obj == null) {
@@ -991,7 +1074,7 @@ var VirtualBard;
     var contextStore = {};
     function Initialize() {
         Setup(function () {
-            on("chat:message", function (msg) {
+            VirtualBard.on("chat:message", function (msg) {
                 VirtualBard.log(msg);
                 //try
                 //{
@@ -1000,6 +1083,7 @@ var VirtualBard;
                     var ctx = getUserContext(msg);
                     // we have a command and a context to work with. lets start processing.
                     process(ctx, r);
+                    SaveState();
                 }
                 //}
                 //catch (err)
@@ -1087,13 +1171,15 @@ var Assert;
         return path;
     }
     function Suite(suiteName, delegate) {
+        console.log("=== Starting test suite " + GetScopedPath());
         try {
             delegate();
+            console.log("=== Test suite " + GetScopedPath() + " Passed");
         }
         catch (error) {
             if (typeof error !== 'AssertionFailure') {
                 var err = error;
-                throw "Suite '" + suiteName + "' Failed.\r\n"
+                throw "!!! Suite '" + GetScopedPath() + "' Failed.\r\n"
                     + "Reason: " + err.message + "\r\n"
                     + "StackTrace: " + err.stack;
             }
@@ -1124,8 +1210,7 @@ var Assert;
                 scopes.push(new ScopeEntry(ScopeType.TestClassFunction, p));
                 var method = i;
                 try {
-                    method();
-                    PrintPass();
+                    Suite(p, method);
                     scopes.pop();
                 }
                 catch (e) {
@@ -1148,59 +1233,116 @@ var Assert;
 /// <reference path="..\test\TestFramework.ts" />"
 var VirtualBard;
 (function (VirtualBard) {
+    /**
+     * Provides a Mock for the Roll20 log function
+     */
     function log(text) {
         console.log(text);
     }
     VirtualBard.log = log;
+    var Handler = (function () {
+        function Handler() {
+        }
+        return Handler;
+    }());
+    var registeredHandlers = [];
+    VirtualBard.state = {};
+    /**
+     * Provides a mock for the roll20 "on"" function
+     */
+    function on(eventType, func) {
+        registeredHandlers.push({
+            event: eventType,
+            callback: func
+        });
+    }
+    VirtualBard.on = on;
+    function RaiseEvent(eventType) {
+        var rest = [];
+        for (var _i = 1; _i < arguments.length; _i++) {
+            rest[_i - 1] = arguments[_i];
+        }
+        for (var i = 0; i < registeredHandlers.length; i++) {
+            var h = registeredHandlers[i];
+            if (h.event == eventType) {
+                var f = h.callback;
+                if (VirtualBard.isAssigned(rest) && rest.length > 0) {
+                    f();
+                }
+                else {
+                    f.apply(this, rest);
+                }
+            }
+        }
+    }
+    //Initialize();
+    //RaiseEvent("ready");
     var myString = "balls balls and balls and stuff<test id=\"1\" others=\"5\">someother <innerTest></innerTest></test>";
     var r = VirtualBard.findTag(myString, "test", { id: "1" });
     Assert.AreEqual("HTMLEdit Basic test", "balls balls and balls and stuff<test id=\"1\" others=\"5\">[Prepended]someother <innerTest>[SetText]</innerTest>[Appended]</test>", r.appendText("[Appended]").prependText("[Prepended]").findTag("innerTest").setText("[SetText]").getText());
     var FunctionTests = (function () {
         function FunctionTests() {
-            this.TestDuration = function () {
-                var d = new VirtualBard.Duration();
-                Assert.AreEqual("Zero time", "Beginning", d.GetDisplayText());
-                d.Hour = 1;
-                Assert.AreEqual("One hour (no plural)", "1 hour", d.GetDisplayText());
-                d.Hour = 2;
-                Assert.AreEqual("Two hours (plural)", "2 hours", d.GetDisplayText());
-                d.Day = 1;
-                Assert.AreEqual("Two hours + 1 day", "2 hours and 1 day", d.GetDisplayText());
-                d.Week = 1;
-                Assert.AreEqual("3 parts", "2 hours, 1 day and 1 week", d.GetDisplayText());
-                d.Month = 1;
-                Assert.AreEqual("4 parts", "2 hours, 1 day, 1 week and 1 month", d.GetDisplayText());
-                d.Year = 1;
-                Assert.AreEqual("5 parts", "2 hours, 1 day, 1 week, 1 month and 1 year", d.GetDisplayText());
-            };
-            this.TestCalendar = function () {
-                var c = new VirtualBard.AdventureCalendar();
-                Assert.AreEqual("DisplayText", "Midnight 1st of Hammer 0PR", c.GetDisplayText());
-                c.AddHours(1);
-                Assert.AreEqual("DisplayText + 1hr", "Moondark 1st of Hammer 0PR", c.GetDisplayText());
-                c.AddHours(24);
-                Assert.AreEqual("DisplayText + 24hr", "Moondark 2nd of Hammer 0PR", c.GetDisplayText());
-                c.SetTime(0);
-                Assert.AreEqual("SetTime to 0", "Midnight 2nd of Hammer 0PR", c.GetDisplayText());
-                c.StartNextDay();
-                Assert.AreEqual("StartNextDay with default", "Dawn 3rd of Hammer 0PR", c.GetDisplayText());
-                c.StartNextDay("Sunset");
-                Assert.AreEqual("Sunset with default", "Sunset 4th of Hammer 0PR", c.GetDisplayText());
-                Assert.AreEqual("Sunset Hour", 18, c.CurrentDuration.Hour);
-                c.ProgressDayPortion();
-                Assert.AreEqual("ProgressDayPortion", "Evening 4th of Hammer 0PR", c.GetDisplayText());
-                c.AddHours(-24);
-                Assert.AreEqual("Display Text - 24hr", "Evening 3rd of Hammer 0PR", c.GetDisplayText());
-                VirtualBard.settings.CalendarConfiguration.Start.Year = 1000;
-                Assert.AreEqual("Display Text + 1000 year base", "Evening 3rd of Hammer 1000PR", c.GetDisplayText());
-                VirtualBard.settings.CalendarConfiguration.Start.Month = 6;
-                Assert.AreEqual("Display Text + 6 month base", "Evening 3rd of Flamerule 1000PR", c.GetDisplayText());
-                VirtualBard.settings.CalendarConfiguration.Start.Week = 2;
-                Assert.AreEqual("Display Text + 2 week base", "Evening 23rd of Flamerule 1000PR", c.GetDisplayText());
-                VirtualBard.settings.CalendarConfiguration.Start.Week = 3;
-                Assert.AreEqual("Display Text + 3 week base", "Evening 3rd of Elesias 1000PR", c.GetDisplayText());
-            };
         }
+        FunctionTests.prototype.TestDuration = function () {
+            var d = new VirtualBard.Duration();
+            Assert.AreEqual("Zero time", "Beginning", d.GetDisplayText());
+            d.Hour = 1;
+            Assert.AreEqual("One hour (no plural)", "1 hour", d.GetDisplayText());
+            d.Hour = 2;
+            Assert.AreEqual("Two hours (plural)", "2 hours", d.GetDisplayText());
+            d.Day = 1;
+            Assert.AreEqual("Two hours + 1 day", "2 hours and 1 day", d.GetDisplayText());
+            d.Week = 1;
+            Assert.AreEqual("3 parts", "2 hours, 1 day and 1 week", d.GetDisplayText());
+            d.Month = 1;
+            Assert.AreEqual("4 parts", "2 hours, 1 day, 1 week and 1 month", d.GetDisplayText());
+            d.Year = 1;
+            Assert.AreEqual("5 parts", "2 hours, 1 day, 1 week, 1 month and 1 year", d.GetDisplayText());
+        };
+        FunctionTests.prototype.TestCalendar = function () {
+            var c = new VirtualBard.AdventureCalendar();
+            Assert.AreEqual("DisplayText", "Midnight 1st of Hammer 0PR", c.GetDisplayText());
+            c.AddHours(1);
+            Assert.AreEqual("DisplayText + 1hr", "Moondark 1st of Hammer 0PR", c.GetDisplayText());
+            c.AddHours(24);
+            Assert.AreEqual("DisplayText + 24hr", "Moondark 2nd of Hammer 0PR", c.GetDisplayText());
+            c.SetTime(0);
+            Assert.AreEqual("SetTime to 0", "Midnight 2nd of Hammer 0PR", c.GetDisplayText());
+            c.StartNextDay();
+            Assert.AreEqual("StartNextDay with default", "Dawn 3rd of Hammer 0PR", c.GetDisplayText());
+            c.StartNextDay("Sunset");
+            Assert.AreEqual("Sunset with default", "Sunset 4th of Hammer 0PR", c.GetDisplayText());
+            Assert.AreEqual("Sunset Hour", 18, c.CurrentDuration.Hour);
+            c.ProgressDayPortion();
+            Assert.AreEqual("ProgressDayPortion", "Evening 4th of Hammer 0PR", c.GetDisplayText());
+            c.AddHours(-24);
+            Assert.AreEqual("Display Text - 24hr", "Evening 3rd of Hammer 0PR", c.GetDisplayText());
+            VirtualBard.settings.CalendarConfiguration.Start.Year = 1000;
+            Assert.AreEqual("Display Text + 1000 year base", "Evening 3rd of Hammer 1000PR", c.GetDisplayText());
+            VirtualBard.settings.CalendarConfiguration.Start.Month = 6;
+            Assert.AreEqual("Display Text + 6 month base", "Evening 3rd of Flamerule 1000PR", c.GetDisplayText());
+            VirtualBard.settings.CalendarConfiguration.Start.Week = 2;
+            Assert.AreEqual("Display Text + 2 week base", "Evening 23rd of Flamerule 1000PR", c.GetDisplayText());
+            VirtualBard.settings.CalendarConfiguration.Start.Week = 3;
+            Assert.AreEqual("Display Text + 3 week base", "Evening 3rd of Elesias 1000PR", c.GetDisplayText());
+        };
+        FunctionTests.prototype.TestLocations = function () {
+            VirtualBard.LoadState();
+            VirtualBard.CurrentState.Calendar.AddHours(10);
+            VirtualBard.CurrentState.Location.NewLocation("Baldurs Gate");
+            Assert.AreEqual("Root Location", "Baldurs Gate", VirtualBard.CurrentState.Location.GetLocationPath());
+            VirtualBard.CurrentState.Calendar.AddHours(10);
+            Assert.AreEqual("Location timespan", "10 hours", VirtualBard.CurrentState.Location.CurrentLocation.GetDuration().GetDisplayText());
+            Assert.AreEqual("Total duration = 20", 20, VirtualBard.CurrentState.Calendar.CurrentDuration.Hour);
+            VirtualBard.CurrentState.Location.EnterSubLocation("Sewers");
+            Assert.AreEqual("New sub location", "Sewers<=Baldurs Gate", VirtualBard.CurrentState.Location.GetLocationPath());
+            VirtualBard.CurrentState.Calendar.AddHours(10);
+            var left = VirtualBard.CurrentState.Location.LeaveSubLocation();
+            Assert.AreEqual("Left location", "Sewers", left.Name);
+            Assert.AreEqual("10 hours at sub location", 10, left.GetDuration().Hour);
+            Assert.AreEqual("Path back to root", "Baldurs Gate", VirtualBard.CurrentState.Location.GetLocationPath());
+            Assert.AreEqual("Total time at root is 20 hours", "20 hours", VirtualBard.CurrentState.Location.CurrentLocation.GetDuration().GetDisplayText());
+        };
         return FunctionTests;
     }());
     Assert.TestClass(new FunctionTests());
