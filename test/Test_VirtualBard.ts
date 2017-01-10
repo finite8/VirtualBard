@@ -14,7 +14,7 @@ namespace VirtualBard {
         Callbacks: any[];
     }
     let registeredHandlers : {event : string, callback : any}[] = [];
-    export var state = {};
+    export var state = {VirtualBardState: null};
     /**
      * Provides a mock for the roll20 "on"" function
      */

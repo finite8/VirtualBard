@@ -1,6 +1,16 @@
 # VirtualBard
 An adventure logging and helper script system for Roll20.
 
+## Logging Issues
+More details the merrier. Tell me what you were doing, where you were at. Screenshots are always handy.
+IMPORTANT: I have put a special command into Virtual Bard. Type "!vb DUMP" (without quotes) into chat, then as a GM, go to the API Console (https://wiki.roll20.net/API:Use_Guide#The_API_Console) and grab any errors in there as well as the full dump. 
+Send all of that fantastic info to me. Should help me get to the core of the issue. 
+### Got a github account?
+Submit the issue via the issues tab up top.
+
+### Don't have / don't want a github account?
+Totally get it. Last thing you need is another account on some site that you don't need. Hit me up on twitter
+
 ## Use this as a template for your own projects
 Eventually, i will split this VSCode project out into its own template for anyone to use. Until then, you can repurpose my project for your own by doing the following:
 ### Windows

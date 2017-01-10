@@ -331,6 +331,9 @@ var VirtualBard;
     }());
     var LocationManager = (function () {
         function LocationManager() {
+            this.CurrentLocation = new LocationInfo();
+            this.CurrentLocation.Name = "An unknown location";
+            this.CurrentLocation.ArrivalDuration = new Duration();
         }
         /** Returns a simple path of the current location. Useful for informative purposes */
         LocationManager.prototype.GetLocationPath = function () {
@@ -1246,7 +1249,7 @@ var VirtualBard;
         return Handler;
     }());
     var registeredHandlers = [];
-    VirtualBard.state = {};
+    VirtualBard.state = { VirtualBardState: null };
     /**
      * Provides a mock for the roll20 "on"" function
      */

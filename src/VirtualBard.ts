@@ -1222,16 +1222,23 @@ namespace VirtualBard {
     var contextStore = {};
     export function Initialize() {
         Setup(function () {
-            on("chat:message", function (msg) {
+            on("chat:message", function (msg: string) {
                 log(msg);
                 //try
                 //{
-                var r = parseMessage(msg);
-                if (r.IsValid) {
-                    var ctx = getUserContext(msg);
-                    // we have a command and a context to work with. lets start processing.
-                    process(ctx, r);
-                    SaveState();
+                if (msg.indexOf("!vb DUMP") == 0)
+                {
+                    DumpEnvironment();
+                }
+                else
+                {
+                    var r = parseMessage(msg);
+                    if (r.IsValid) {
+                        var ctx = getUserContext(msg);
+                        // we have a command and a context to work with. lets start processing.
+                        process(ctx, r);
+                        SaveState();
+                    }
                 }
                 //}
                 //catch (err)
@@ -1242,6 +1249,16 @@ namespace VirtualBard {
             });
         });
     };
+    function DumpEnvironment() : void
+    {
+        log("========= DUMPING ENVIRONMENT ===========");
+        log("======= BEGIN GAME STATE =========");
+        log(JSON.stringify(state));
+        log("======= BEGIN VIRTUALBARD ENVIRONMENT =========")
+        log(this);
+        log("========= END DUMP ===========")
+        log("If you are collecting this as part of submitting a bug or issue, ")
+    }
 
 
 
