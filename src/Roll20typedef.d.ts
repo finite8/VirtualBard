@@ -93,7 +93,7 @@ declare function getAttrByName(character_id: string, attribute_name: string, val
 declare function on(eventType: string, callback: (...args: any[]) => any): void;
 /**
  * 
- * Source: https://wiki.roll20.net/API:Objects#stateg
+ * Source: https://wiki.roll20.net/API:Objects#state
  * 
  */
 declare var state : any;

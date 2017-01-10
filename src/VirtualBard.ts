@@ -102,20 +102,21 @@ namespace VirtualBard {
         public StartHour: number;
         public EndHour: number;
     }
-    class Duration {
-        public constructor() {
-            this.Year = 0;
-            this.Month = 0;
-            this.Week = 0;
-            this.Day = 0;
-            this.Hour = 0;
+    export class Duration {
+        public constructor(basis? : Duration) {
+            this.Year = basis && basis.Year || 0;
+            this.Month = basis && basis.Month || 0;
+            this.Week = basis && basis.Week || 0;
+            this.Day = basis && basis.Day || 0;
+            this.Hour = basis && basis.Hour || 0;
         }
+        
         public Year: number;
         public Month: number;
         public Week: number;
         public Day: number;
         public Hour: number;
-        private static nth(d: number): string {
+        public static nth(d: number): string {
             if (d > 3 && d < 21) return 'th';
             switch (d % 10) {
                 case 1: return "st";
@@ -144,17 +145,86 @@ namespace VirtualBard {
             this.Week += other.Week;
             this.Month += other.Month;
             this.Year += other.Year;
+            this.BalanceTime();
         }
 
-        public GetDisplayText(): string {
-            let port = Duration.GetDayTimePortion(this.Hour);
-            let diff = this.Hour - port.StartHour;
-            let hourPortionText = diff == 0 ? "" : diff + " hours after ";
-            return "" + hourPortionText + port.Name
-                + " " + (this.Day + 1) + Duration.nth(this.Day + 1)
-                + " of " + settings.CalendarConfiguration.MonthNames[this.Month]
-                + " " + this.Year + settings.CalendarConfiguration.YearSuffix;
+        public GetDisplayText() : string {
+            
+            let parts : string[] = [];
+            if (this.Hour > 0)
+            {
+                let part = `${this.Hour} hour`;
+                
+                if (this.Hour > 1)
+                {
+                    part += "s"
+                }
+                parts.push(part);
+            }
+            if (this.Day > 0)
+            {
+                let part = `${this.Day} day`;
+                if (this.Day > 1)
+                {
+                    part += "s";
+                }
+                parts.push(part);
+            }
+            if (this.Week > 0)
+            {
+                let part = `${this.Week} week`;
+                if (this.Week > 1)
+                {
+                    part += "s";
+                }
+                parts.push(part);
+            }
+            if (this.Month > 0)
+            {
+                let part = `${this.Month} month`;
+                if (this.Month > 1)
+                {
+                    part += "s";
+                }
+                parts.push(part);
+            }
+            if (this.Year > 0)
+            {
+                let part = `${this.Year} year`;
+                if (this.Year > 1)
+                {
+                    part += "s";
+                }
+                parts.push(part);
+            }
+            if (parts.length == 0)
+            {
+                return "Beginning";
+            }
+            else
+            {
+                let retString = "";
+                // we need to add commas inbetween all the parts, except for the last one. that gets an "and"
+                for(var i = 0; i < parts.length; i++)
+                {
+                    retString += parts[i];
+                    if (i < parts.length - 2)
+                    {
+                        retString += ", ";
+                    }
+                    else if (i == parts.length - 2)
+                    {
+                        retString += " and ";
+                    }
+                }
+                return retString;
+
+            }
+
         }
+
+        
+        
         public BalanceTime(): void {
             // Hours
             while (this.Hour >= settings.CalendarConfiguration.HoursInDay) {
@@ -213,6 +283,20 @@ namespace VirtualBard {
         public AddHours(hours: number): void {
             this.CurrentDuration.Hour += hours;
             this.CurrentDuration.BalanceTime();
+            
+        }
+
+        public GetDisplayText(): string {
+            let useDuration = new Duration(settings.CalendarConfiguration.Start);
+            useDuration.AddDuration(this.CurrentDuration);
+            let port = Duration.GetDayTimePortion(useDuration.Hour);
+            let diff = useDuration.Hour - port.StartHour;
+            let hourPortionText = diff == 0 ? "" : diff + " hours after ";
+            let dayPart = (useDuration.Day + 1) + (useDuration.Week * settings.CalendarConfiguration.DaysInWeek)
+            return "" + hourPortionText + port.Name
+                + " " + (dayPart) + Duration.nth(dayPart)
+                + " of " + settings.CalendarConfiguration.MonthNames[useDuration.Month]
+                + " " + useDuration.Year + settings.CalendarConfiguration.YearSuffix;
         }
 
 
@@ -503,7 +587,7 @@ namespace VirtualBard {
 
         }
     };
-    let settings = DefaultSettings();
+    export let settings = DefaultSettings();
     /**
      *  returns a object that describes the results. The returned object supports additional searcing and text modification functions.
      */
