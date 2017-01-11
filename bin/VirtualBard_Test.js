@@ -3,6 +3,12 @@ var __extends = (this && this.__extends) || function (d, b) {
     function __() { this.constructor = d; }
     d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
 };
+var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
+    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
+    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
+    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
+    return c > 3 && r && Object.defineProperty(target, key, r), r;
+};
 /// <reference path="Roll20typedef.d.ts" />
 /// <reference path="../typings/globals/underscore/index.d.ts" />
 /*
@@ -21,6 +27,71 @@ var __extends = (this && this.__extends) || function (d, b) {
 */
 var VirtualBard;
 (function (VirtualBard) {
+    // === DECORATORS ===
+    var VBModuleInfo = (function () {
+        function VBModuleInfo() {
+            this.Commands = [];
+            this.PostDelegates = [];
+        }
+        VBModuleInfo.prototype.GetCommandInfo = function (cmdText) {
+            for (var i = 0; i < this.Commands.length; i++) {
+                var cmd = this.Commands[i];
+                if ("-" + cmd.Prefix == cmdText) {
+                    return cmd;
+                }
+            }
+            throw "No command found with prefix \"" + cmdText;
+        };
+        return VBModuleInfo;
+    }());
+    var VBModuleCommandInfo = (function () {
+        function VBModuleCommandInfo() {
+        }
+        return VBModuleCommandInfo;
+    }());
+    var LoadedModules = [];
+    function GetVBModuleForClass(className) {
+        for (var i = 0; i < LoadedModules.length; i++) {
+            var m = LoadedModules[i];
+            if (m.Name == className) {
+                return m;
+            }
+        }
+        var newM = new VBModuleInfo();
+        newM.Name = className;
+        LoadedModules.push(newM);
+        return newM;
+    }
+    function VBModule(modulePrefix) {
+        return function (constructor) {
+            //console.log(modulePrefix);
+            //console.log(constructor);
+            var m = GetVBModuleForClass(constructor.name); // cast to any to shut typescript up
+            m.Prefix = modulePrefix;
+            //console.log(JSON.stringify(LoadedModules));
+        };
+    }
+    function VBModulePostAction() {
+        return function (target, propertyKey, descriptor) {
+            var m = GetVBModuleForClass(target.constructor.name);
+            var postDel = descriptor.value;
+            m.PostDelegates.push(postDel);
+        };
+    }
+    function VBModuleCommand(commandText) {
+        return function (target, propertyKey, descriptor) {
+            //console.log(commandText);
+            //console.log(target);
+            //console.log(descriptor);
+            var m = GetVBModuleForClass(target.constructor.name);
+            var cmd = new VBModuleCommandInfo();
+            cmd.Prefix = commandText;
+            cmd.Delegate = descriptor.value;
+            m.Commands.push(cmd);
+            //console.log(JSON.stringify(LoadedModules));
+        };
+    }
+    //  
     function Setup(completionCallback) {
         VirtualBard.on("ready", function () {
             var settingsHandout = p_sysFunctions.getHandout("VBSettings", true, false);
@@ -40,7 +111,6 @@ var VirtualBard;
                         VirtualBard.settings = DefaultSettings();
                         setTimeout(function () {
                             var notes = JSON.stringify(VirtualBard.settings);
-                            VirtualBard.log("New data to assign: " + notes);
                             settingsHandout.set("gmnotes", "<Settings>" + notes + "</Settings>");
                             LoadState();
                             if (isAssigned(completionCallback)) {
@@ -704,21 +774,33 @@ var VirtualBard;
             result.IsValid = false;
             return result;
         }
-        result.IsHelp = false;
-        if (msg.content.indexOf("!h") == 0) {
-            result.IsHelp = true;
-            result.Type = MessageType.All;
+        var found = false;
+        for (var i_1 = 0; i_1 < LoadedModules.length; i_1++) {
+            var m = LoadedModules[i_1];
+            if (msg.content.indexOf("!" + m.Prefix) == 0) {
+                result.Module = m;
+                found = true;
+                break;
+            }
         }
-        else if (msg.content.indexOf("!c") == 0) {
-            result.Type = MessageType.Character;
-        }
-        else if (msg.content.indexOf("!test") == 0) {
-            result.Type = MessageType.Test;
-        }
-        else {
+        if (!found) {
             result.IsValid = false;
             return result;
         }
+        // if (msg.content.indexOf("!h") == 0) {
+        //     result.IsHelp = true;
+        //     result.Type = MessageType.All;
+        // }
+        // else if (msg.content.indexOf("!c") == 0) {
+        //     result.Type = MessageType.Character;
+        // }
+        // else if (msg.content.indexOf("!test") == 0) {
+        //     result.Type = MessageType.Test;
+        // }
+        // else {
+        //     result.IsValid = false;
+        //     return result;
+        // }
         result.IsValid = true;
         result.UserContextId = msg.playerid;
         result.UserName = msg.who;
@@ -726,14 +808,7 @@ var VirtualBard;
         result.Commands = [];
         // we now search for the next '-' starting element.
         var parts = msg.content.trim().split(" ");
-        var index;
-        if (parts.length >= 2 && parts[1] == "-h") {
-            result.IsHelp = true;
-            index = 2;
-        }
-        else {
-            index = 1;
-        }
+        var index = 1;
         var addedSomething = false;
         for (var i = index; i < parts.length; i++) {
             var part = parts[i];
@@ -780,71 +855,59 @@ var VirtualBard;
     }
     function process(context, data) {
         context.Current = {};
-        var processingFunction;
+        //let processingFunction: (ctx: UserContext, cmd: MessageCommand) => void;
         var postAction;
-        switch (data.Type) {
-            case MessageType.Character:
-                if (data.IsHelp) {
-                    printJournalHelp(data);
-                }
-                else {
-                    context.Current.SentenceParts = {};
-                    processingFunction = function (ctx, cmd) { processCharacterAction(ctx, cmd); };
-                    postAction = function (ctx) { p_characterFunctions.logResults(ctx); };
-                }
-                break;
-            case MessageType.Test:
-                testCode();
-                break;
-            default:
-                throw "Command " + data.Type + " not implemented";
-        }
-        if (typeof processingFunction !== 'undefined') {
-            var errors = [];
-            for (var i = 0; i < data.Commands.length; i++) {
-                try {
-                    var cmd = data.Commands[i];
-                    processingFunction(context, cmd);
-                }
-                catch (er) {
+        // switch (data.Type) {
+        //     case MessageType.Character:
+        //         if (data.IsHelp) {
+        //             printJournalHelp(data);
+        //         }
+        //         else {
+        //             context.Current.SentenceParts = {};
+        //             processingFunction = function (ctx, cmd) { processCharacterAction(ctx, cmd) };
+        //             postAction = function (ctx) { p_characterFunctions.logResults(ctx) };
+        //         }
+        //         break;
+        //     case MessageType.Test:
+        //         testCode();
+        //         break;
+        //     default:
+        //         throw "Command " + data.Type + " not implemented";
+        // }
+        //if (typeof processingFunction !== 'undefined') {
+        var errors = [];
+        for (var i = 0; i < data.Commands.length; i++) {
+            try {
+                var cmd = data.Commands[i];
+                var cmdInfo = data.Module.GetCommandInfo(cmd.Type);
+                cmdInfo.Delegate(context, cmd);
+            }
+            catch (er) {
+                if (typeof er == "Error") {
                     var err = er;
                     errors.push("cmd=(" + cmd.Type + " " + cmd.Params.join(" ") + "), err=" + err.message + ", stack=" + err.stack);
                 }
-            }
-            if (isDefined(postAction)) {
-                postAction(context);
-            }
-            if (errors.length > 0) {
-                throw "Following errors were encountered:\r\n" + errors.join("\r\n");
+                else {
+                    errors.push("cmd=(" + cmd.Type + " " + cmd.Params.join(" ") + "), err=" + er);
+                }
             }
         }
+        for (var i_2 = 0; i_2 < data.Module.PostDelegates.length; i_2++) {
+            data.Module.PostDelegates[i_2](context);
+        }
+        // if (isDefined(postAction)) {
+        //     postAction(context);
+        // }
+        if (errors.length > 0) {
+            throw "Following errors were encountered:\r\n" + errors.join("\r\n");
+        }
+        //}
     }
-    function printJournalHelp(data) {
-        sendMessage(data.UserName, "!j +met <name> --- Adds a new event for meeting a person. Creates a new person entry switches context to them");
-    }
-    function processCharacterAction(ctx, cmd) {
-        if (cmd.Type == "-met") {
-            p_characterFunctions.metAction(ctx, cmd);
+    var CharacterFunctions = CharacterFunctions_1 = (function () {
+        function CharacterFunctions() {
         }
-        else if (cmd.Type == "-who") {
-            p_characterFunctions.whoAction(ctx, cmd);
-        }
-        else if (cmd.Type == "-r") {
-            p_characterFunctions.raceAction(ctx, cmd);
-        }
-        else if (cmd.Type == "-s") {
-            p_characterFunctions.sexAction(ctx, cmd);
-        }
-        else if (cmd.Type == "-c") {
-            p_characterFunctions.classAction(ctx, cmd);
-        }
-        else {
-            throw "Character command not recognized: " + cmd.Type;
-        }
-    }
-    var p_characterFunctions = {
-        logResults: function (context) {
-            var sp = context.Current.SentenceParts;
+        CharacterFunctions.prototype.logAction = function (ctx) {
+            var sp = ctx.Current.SentenceParts;
             if (isDefined(sp) && isDefined(sp.Name)) {
                 var sent = "";
                 sent = sent + "The party met [" + sp.Name + "]";
@@ -863,10 +926,8 @@ var VirtualBard;
                 sent = sent + ".";
                 p_journalFunctions.appendJournalLine(sent);
             }
-        },
-        appendBio: function (char, text) {
-        },
-        whoAction: function (ctx, cmd) {
+        };
+        CharacterFunctions.prototype.whoAction = function (ctx, cmd) {
             var charName = cmd.Params.join(" ");
             var r = p_sysFunctions.getCharacterInfo(charName);
             if (isDefined(r)) {
@@ -877,9 +938,21 @@ var VirtualBard;
             else {
                 ctx.SendChat("No character exists with name: " + charName);
             }
-        },
-        classAction: function (ctx, cmd) {
-            this.assertCurrentCharDefined(ctx, cmd);
+        };
+        CharacterFunctions.prototype.metAction = function (ctx, cmd) {
+            var charName = cmd.Params.join(" ");
+            var r = p_sysFunctions.getCharacterInfo(charName);
+            VirtualBard.log("Char Info: " + r);
+            if (!r.IsNew) {
+                sendMessage(ctx.UserName, "The party is already aware of " + charName);
+            }
+            else {
+            }
+            ctx.Current.SentenceParts.Name = charName;
+            ctx.CurrentChar = r.Char;
+        };
+        CharacterFunctions.prototype.classAction = function (ctx, cmd) {
+            CharacterFunctions_1.assertCurrentCharDefined(ctx, cmd);
             var realClass = VirtualBard.settings.classTypes[cmd.Params[0].toLowerCase()];
             if (!isDefined(realClass)) {
                 ctx.SendChat("Class " + cmd.Params[0] + " could not be resolved to a real class. Character sheet will resort to a default instead");
@@ -891,43 +964,53 @@ var VirtualBard;
             }
             ctx.CurrentChar.SetAttribute("class", realClass);
             ctx.CurrentChar.SetAttribute("inputClass", cmd.Params[0]);
-        },
-        metAction: function (ctx, cmd) {
-            var charName = cmd.Params.join(" ");
-            var r = p_sysFunctions.getCharacterInfo(charName);
-            VirtualBard.log("Char Info: " + r);
-            if (!r.IsNew) {
-                sendMessage(ctx.UserName, "The party is already aware of " + charName);
-            }
-            else {
-            }
-            ctx.Current.SentenceParts.Name = charName;
-            ctx.CurrentChar = r.Char;
-        },
-        sexAction: function (ctx, cmd) {
-            this.assertCurrentCharDefined(ctx, cmd);
-            var sex = this.parseSex(cmd.Params[0]);
+        };
+        CharacterFunctions.prototype.sexAction = function (ctx, cmd) {
+            CharacterFunctions_1.assertCurrentCharDefined(ctx, cmd);
+            var sex = CharacterFunctions_1.parseSex(cmd.Params[0]);
             ctx.Current.SentenceParts.Sex = sex;
             ctx.CurrentChar.SetAttribute("sex", sex);
-        },
-        raceAction: function (ctx, cmd) {
-            this.assertCurrentCharDefined(ctx, cmd);
+        };
+        CharacterFunctions.prototype.raceAction = function (ctx, cmd) {
+            CharacterFunctions_1.assertCurrentCharDefined(ctx, cmd);
             ctx.Current.SentenceParts.Race = cmd.Params.join(" ");
             ctx.CurrentChar.SetAttribute("race", ctx.Current.SentenceParts.Race);
-        },
-        parseSex: function (text) {
+        };
+        CharacterFunctions.parseSex = function (text) {
             var sex = VirtualBard.settings.sexTypes[text.toLowerCase()];
             if (typeof sex == 'undefined') {
                 throw text + " could not be interpreted as a valid sex";
             }
             return sex;
-        },
-        assertCurrentCharDefined: function (ctx, cmd) {
+        };
+        CharacterFunctions.assertCurrentCharDefined = function (ctx, cmd) {
             if (typeof ctx.CurrentChar == 'undefined') {
                 throw cmd.Type + " requires a Character context to be set";
             }
-        }
-    };
+        };
+        return CharacterFunctions;
+    }());
+    __decorate([
+        VBModulePostAction()
+    ], CharacterFunctions.prototype, "logAction", null);
+    __decorate([
+        VBModuleCommand("who")
+    ], CharacterFunctions.prototype, "whoAction", null);
+    __decorate([
+        VBModuleCommand("met")
+    ], CharacterFunctions.prototype, "metAction", null);
+    __decorate([
+        VBModuleCommand("c")
+    ], CharacterFunctions.prototype, "classAction", null);
+    __decorate([
+        VBModuleCommand("s")
+    ], CharacterFunctions.prototype, "sexAction", null);
+    __decorate([
+        VBModuleCommand("r")
+    ], CharacterFunctions.prototype, "raceAction", null);
+    CharacterFunctions = CharacterFunctions_1 = __decorate([
+        VBModule("c")
+    ], CharacterFunctions);
     var p_journalFunctions = {
         currentSentence: "",
         appendJournalText: function (text) {
@@ -956,9 +1039,9 @@ var VirtualBard;
             if (typeof this.journalHandout !== 'undefined') {
                 return this.journalHandout;
             }
-            var handouts = findObjs({ _type: "handout", name: VirtualBard.settings.AdventureLog });
+            var handouts = VirtualBard.findObjs({ _type: "handout", name: VirtualBard.settings.AdventureLog });
             if (handouts.length == 0) {
-                var h = createObj("handout", { name: VirtualBard.settings.AdventureLog, inplayerjournals: "all", controlledby: "all", notes: "" });
+                var h = VirtualBard.createObj("handout", { name: VirtualBard.settings.AdventureLog, inplayerjournals: "all", controlledby: "all", notes: "" });
                 this.journalHandout = h;
             }
             else {
@@ -975,7 +1058,7 @@ var VirtualBard;
         },
         /** Gets or Creates a handout with the specified name. */
         getHandout: function (handoutName, isHidden, isEditable) {
-            var hos = findObjs({ _type: "handout", name: handoutName });
+            var hos = VirtualBard.findObjs({ _type: "handout", name: handoutName });
             VirtualBard.log(hos);
             if (isAssigned(hos) && hos.length > 0) {
                 return hos[0];
@@ -996,11 +1079,11 @@ var VirtualBard;
                 else {
                     isEditableStr = "";
                 }
-                return createObj("handout", { name: handoutName, inplayerjournals: inplayerjournalsStr, controlledby: isEditableStr });
+                return VirtualBard.createObj("handout", { name: handoutName, inplayerjournals: inplayerjournalsStr, controlledby: isEditableStr });
             }
         },
         findCharacterSheet: function (charName) {
-            var shts = findObjs({ _type: "character", name: charName });
+            var shts = VirtualBard.findObjs({ _type: "character", name: charName });
             VirtualBard.log(shts);
             if (shts.length == 0) {
                 return null;
@@ -1024,7 +1107,7 @@ var VirtualBard;
                             VirtualBard.log("Could not find Character sheet for " + charName);
                             if (m.canCreate) {
                                 VirtualBard.log("Creating...");
-                                char = createObj("character", { name: charName, inplayerjournals: "all", controlledby: "all" });
+                                char = VirtualBard.createObj("character", { name: charName, inplayerjournals: "all", controlledby: "all" });
                                 this.setCharacterAttribute(char, VBAttributes.IsMet, true);
                                 isNew = true;
                             }
@@ -1057,13 +1140,13 @@ var VirtualBard;
             return result;
         },
         setCharacterAttribute: function (char, attribName, newValue) {
-            var attribs = findObjs({ _type: "attribute", _characterid: char.id, name: attribName });
+            var attribs = VirtualBard.findObjs({ _type: "attribute", _characterid: char.id, name: attribName });
             VirtualBard.log("setting attribute");
             VirtualBard.log(char);
             //log(findObjs({_type:"attribute", _characterid:char.id}));
             if (attribs.length == 0) {
                 // we instead need to insert it
-                var newAttrib = createObj("attribute", { name: attribName, current: newValue, characterid: char.id });
+                var newAttrib = VirtualBard.createObj("attribute", { name: attribName, current: newValue, characterid: char.id });
                 VirtualBard.log("Inserting attribute" + attribName);
             }
             else if (attribs.length > 1) {
@@ -1081,12 +1164,17 @@ var VirtualBard;
                 VirtualBard.log(msg);
                 //try
                 //{
-                var r = parseMessage(msg);
-                if (r.IsValid) {
-                    var ctx = getUserContext(msg);
-                    // we have a command and a context to work with. lets start processing.
-                    process(ctx, r);
-                    SaveState();
+                if (msg.indexOf("!vb DUMP") == 0) {
+                    DumpEnvironment();
+                }
+                else {
+                    var r = parseMessage(msg);
+                    if (r.IsValid) {
+                        var ctx = getUserContext(msg);
+                        // we have a command and a context to work with. lets start processing.
+                        process(ctx, r);
+                        SaveState();
+                    }
                 }
                 //}
                 //catch (err)
@@ -1099,6 +1187,16 @@ var VirtualBard;
     }
     VirtualBard.Initialize = Initialize;
     ;
+    function DumpEnvironment() {
+        VirtualBard.log("========= DUMPING ENVIRONMENT ===========");
+        VirtualBard.log("======= BEGIN GAME STATE =========");
+        VirtualBard.log(JSON.stringify(VirtualBard.state));
+        VirtualBard.log("======= BEGIN VIRTUALBARD ENVIRONMENT =========");
+        VirtualBard.log(this);
+        VirtualBard.log("========= END DUMP ===========");
+        VirtualBard.log("If you are collecting this as part of submitting a bug or issue, ");
+    }
+    var CharacterFunctions_1;
 })(VirtualBard || (VirtualBard = {}));
 /// <reference path="../typings/globals/underscore/index.d.ts" />
 var Assert;
@@ -1239,16 +1337,17 @@ var VirtualBard;
     /**
      * Provides a Mock for the Roll20 log function
      */
-    function log(text) {
-        console.log(text);
-    }
-    VirtualBard.log = log;
     var Handler = (function () {
         function Handler() {
         }
         return Handler;
     }());
     var registeredHandlers = [];
+    // MOCK MEMBERS
+    function log(text) {
+        console.log(text);
+    }
+    VirtualBard.log = log;
     VirtualBard.state = { VirtualBardState: null };
     /**
      * Provides a mock for the roll20 "on"" function
@@ -1260,6 +1359,32 @@ var VirtualBard;
         });
     }
     VirtualBard.on = on;
+    function findObjs(attrib) {
+        return attrib;
+    }
+    VirtualBard.findObjs = findObjs;
+    function createObj(typeName, initParam) {
+        initParam.type = typeName;
+        initParam.SecretProps = {};
+        initParam.get = function (propToGet, callback) {
+            var val;
+            if (VirtualBard.isAssigned(initParam.SecretProps[propToGet])) {
+                val = null;
+            }
+            else {
+                val = initParam.SecretProps[propToGet];
+            }
+            setTimeout(function () {
+                callback(val);
+            }, 0);
+        };
+        initParam.set = function (propToSet, value) {
+            initParam.SecretProps[propToSet] = value;
+        };
+        return initParam;
+    }
+    VirtualBard.createObj = createObj;
+    // END MOCKS
     function RaiseEvent(eventType) {
         var rest = [];
         for (var _i = 1; _i < arguments.length; _i++) {
@@ -1278,8 +1403,8 @@ var VirtualBard;
             }
         }
     }
-    //Initialize();
-    //RaiseEvent("ready");
+    VirtualBard.Initialize();
+    RaiseEvent("ready");
     var myString = "balls balls and balls and stuff<test id=\"1\" others=\"5\">someother <innerTest></innerTest></test>";
     var r = VirtualBard.findTag(myString, "test", { id: "1" });
     Assert.AreEqual("HTMLEdit Basic test", "balls balls and balls and stuff<test id=\"1\" others=\"5\">[Prepended]someother <innerTest>[SetText]</innerTest>[Appended]</test>", r.appendText("[Appended]").prependText("[Prepended]").findTag("innerTest").setText("[SetText]").getText());

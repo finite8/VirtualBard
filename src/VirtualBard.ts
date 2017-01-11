@@ -17,8 +17,87 @@
 
 
 
-namespace VirtualBard {
 
+namespace VirtualBard {
+// === DECORATORS ===
+    class VBModuleInfo
+    {
+        Prefix: string;
+        Name: string;
+        Commands : VBModuleCommandInfo[] = [];
+        PostDelegates: {(ctx: UserContext) : void}[] = [];
+        public GetCommandInfo(cmdText: string) : VBModuleCommandInfo
+        {
+            for (let i = 0; i < this.Commands.length; i++)
+            {
+                let cmd = this.Commands[i];
+                if (`-${cmd.Prefix}` == cmdText)
+                {
+                    return cmd;
+                }
+            }
+            throw `No command found with prefix "${cmdText}`;
+        }
+    }
+
+    class VBModuleCommandInfo
+    {
+        Prefix: string;
+        Delegate: (ctx: UserContext, cmd: MessageCommand) => void;
+    }
+
+    let LoadedModules : VBModuleInfo[] = [];
+
+    
+
+    function GetVBModuleForClass(className: string) : VBModuleInfo
+    {
+        for (let i = 0; i < LoadedModules.length; i++)
+        {
+            let m = LoadedModules[i];
+            if (m.Name == className)
+            {
+                return m;
+            }
+        }
+        let newM = new VBModuleInfo();
+        newM.Name = className;
+        LoadedModules.push(newM);
+        return newM;
+    }
+    function VBModule(modulePrefix: string) {
+        return function (constructor: Function) {
+            //console.log(modulePrefix);
+            //console.log(constructor);
+            
+            let m = GetVBModuleForClass((<any> constructor).name); // cast to any to shut typescript up
+            m.Prefix = modulePrefix;
+            //console.log(JSON.stringify(LoadedModules));
+        }
+    }
+    function VBModulePostAction() {
+        return function (target: any, propertyKey: string, descriptor: PropertyDescriptor) {
+            let m = GetVBModuleForClass(target.constructor.name);
+            let postDel : (ctx: UserContext) => void = descriptor.value;
+            m.PostDelegates.push(postDel);
+        };
+    }
+
+    function VBModuleCommand(commandText: string) {
+        return function (target: any, propertyKey: string, descriptor: PropertyDescriptor) {
+            //console.log(commandText);
+            //console.log(target);
+            //console.log(descriptor);
+            let m = GetVBModuleForClass(target.constructor.name);
+            let cmd = new VBModuleCommandInfo();
+            cmd.Prefix = commandText;
+            cmd.Delegate = descriptor.value;
+            
+            m.Commands.push(cmd);
+            //console.log(JSON.stringify(LoadedModules));
+        };
+    }
+//  
     function Setup(completionCallback: () => void): void {
         on("ready", function () {
             let settingsHandout = p_sysFunctions.getHandout("VBSettings", true, false);
@@ -40,7 +119,7 @@ namespace VirtualBard {
                         setTimeout(function () {
 
                             var notes = JSON.stringify(settings);
-                            log("New data to assign: " + notes);
+                            
                             settingsHandout.set("gmnotes", "<Settings>" + notes + "</Settings>");
                             LoadState();
                             if (isAssigned(completionCallback)) {
@@ -142,7 +221,7 @@ namespace VirtualBard {
             }
             throw "No DayTimeRange was specified in settings for hour " + hour;
         }
-
+        
         public AddDuration(other: Duration): void {
             this.Day += other.Day;
             this.Hour += other.Hour;
@@ -793,8 +872,7 @@ namespace VirtualBard {
     }
     class MessageInfo {
         IsValid: boolean;
-        IsHelp: boolean;
-        Type: MessageType;
+        Module: VBModuleInfo;
         UserContextId: string;
         UserName: string;
         Commands: MessageCommand[];
@@ -811,21 +889,41 @@ namespace VirtualBard {
             result.IsValid = false;
             return result;
         }
-        result.IsHelp = false;
-        if (msg.content.indexOf("!h") == 0) {
-            result.IsHelp = true;
-            result.Type = MessageType.All;
+        
+        let found = false;
+        for (let i = 0; i < LoadedModules.length; i++)
+        {
+            let m = LoadedModules[i];
+            
+            if (msg.content.indexOf(`!${m.Prefix}`) == 0)
+            {
+                result.Module = m;
+                found = true;
+                break;
+            }
         }
-        else if (msg.content.indexOf("!c") == 0) {
-            result.Type = MessageType.Character;
-        }
-        else if (msg.content.indexOf("!test") == 0) {
-            result.Type = MessageType.Test;
-        }
-        else {
+        if (!found)
+        {
             result.IsValid = false;
             return result;
         }
+        
+
+
+        // if (msg.content.indexOf("!h") == 0) {
+        //     result.IsHelp = true;
+        //     result.Type = MessageType.All;
+        // }
+        // else if (msg.content.indexOf("!c") == 0) {
+        //     result.Type = MessageType.Character;
+        // }
+        // else if (msg.content.indexOf("!test") == 0) {
+        //     result.Type = MessageType.Test;
+        // }
+        // else {
+        //     result.IsValid = false;
+        //     return result;
+        // }
         result.IsValid = true;
         result.UserContextId = msg.playerid;
         result.UserName = msg.who;
@@ -833,14 +931,7 @@ namespace VirtualBard {
         result.Commands = [];
         // we now search for the next '-' starting element.
         var parts = msg.content.trim().split(" ");
-        var index;
-        if (parts.length >= 2 && parts[1] == "-h") {
-            result.IsHelp = true;
-            index = 2;
-        }
-        else {
-            index = 1;
-        }
+        var index = 1;
         var addedSomething = false;
         for (var i = index; i < parts.length; i++) {
             var part = parts[i];
@@ -897,73 +988,71 @@ namespace VirtualBard {
     }
     function process(context: UserContext, data: MessageInfo) {
         context.Current = {};
-        let processingFunction: (ctx: UserContext, cmd: MessageCommand) => void;
+        //let processingFunction: (ctx: UserContext, cmd: MessageCommand) => void;
         var postAction;
-        switch (data.Type) {
-            case MessageType.Character:
-                if (data.IsHelp) {
-                    printJournalHelp(data);
-                }
-                else {
-                    context.Current.SentenceParts = {};
-                    processingFunction = function (ctx, cmd) { processCharacterAction(ctx, cmd) };
-                    postAction = function (ctx) { p_characterFunctions.logResults(ctx) };
-                }
-                break;
-            case MessageType.Test:
-                testCode();
-                break;
-            default:
-                throw "Command " + data.Type + " not implemented";
-        }
 
-        if (typeof processingFunction !== 'undefined') {
-            var errors = [];
-            for (var i = 0; i < data.Commands.length; i++) {
-                try {
-                    var cmd = data.Commands[i];
-                    processingFunction(context, cmd);
-                }
-                catch (er) {
+        // switch (data.Type) {
+        //     case MessageType.Character:
+        //         if (data.IsHelp) {
+        //             printJournalHelp(data);
+        //         }
+        //         else {
+        //             context.Current.SentenceParts = {};
+        //             processingFunction = function (ctx, cmd) { processCharacterAction(ctx, cmd) };
+        //             postAction = function (ctx) { p_characterFunctions.logResults(ctx) };
+        //         }
+        //         break;
+        //     case MessageType.Test:
+        //         testCode();
+        //         break;
+        //     default:
+        //         throw "Command " + data.Type + " not implemented";
+        // }
+
+        //if (typeof processingFunction !== 'undefined') {
+        var errors = [];
+        for (var i = 0; i < data.Commands.length; i++) {
+            
+            try {
+                var cmd = data.Commands[i];
+                let cmdInfo = data.Module.GetCommandInfo(cmd.Type);
+                cmdInfo.Delegate(context, cmd);
+            }
+            catch (er) {
+                if (typeof er == "Error")
+                {
                     let err: Error = er;
+                    
                     errors.push("cmd=(" + cmd.Type + " " + cmd.Params.join(" ") + "), err=" + err.message + ", stack=" + err.stack);
                 }
-            }
-            if (isDefined(postAction)) {
-                postAction(context);
-            }
-            if (errors.length > 0) {
-                throw "Following errors were encountered:\r\n" + errors.join("\r\n");
+                else
+                {
+                    errors.push("cmd=(" + cmd.Type + " " + cmd.Params.join(" ") + "), err=" + er);
+                }
             }
         }
+        for (let i = 0; i < data.Module.PostDelegates.length; i++)
+        {
+            data.Module.PostDelegates[i](context);
+        }
+        // if (isDefined(postAction)) {
+        //     postAction(context);
+        // }
+        if (errors.length > 0) {
+            throw "Following errors were encountered:\r\n" + errors.join("\r\n");
+        }
+        //}
 
     }
-    function printJournalHelp(data) {
-        sendMessage(data.UserName, "!j +met <name> --- Adds a new event for meeting a person. Creates a new person entry switches context to them")
-    }
-    function processCharacterAction(ctx: UserContext, cmd: MessageCommand) {
-        if (cmd.Type == "-met") {
-            p_characterFunctions.metAction(ctx, cmd);
-        }
-        else if (cmd.Type == "-who") {
-            p_characterFunctions.whoAction(ctx, cmd);
-        }
-        else if (cmd.Type == "-r") {
-            p_characterFunctions.raceAction(ctx, cmd);
-        }
-        else if (cmd.Type == "-s") {
-            p_characterFunctions.sexAction(ctx, cmd);
-        }
-        else if (cmd.Type == "-c") {
-            p_characterFunctions.classAction(ctx, cmd);
-        }
-        else {
-            throw "Character command not recognized: " + cmd.Type;
-        }
-    }
-    var p_characterFunctions = {
-        logResults: function (context) {
-            var sp = context.Current.SentenceParts;
+   
+    
+    @VBModule("c")
+    class CharacterFunctions
+    {
+        @VBModulePostAction()
+        public logAction(ctx : UserContext) : void
+        {
+            var sp = ctx.Current.SentenceParts;
             if (isDefined(sp) && isDefined(sp.Name)) {
                 var sent = "";
                 sent = sent + "The party met [" + sp.Name + "]";
@@ -982,12 +1071,11 @@ namespace VirtualBard {
                 sent = sent + ".";
                 p_journalFunctions.appendJournalLine(sent);
             }
-        },
-        appendBio: function (char, text) {
+        }
 
-        },
-        whoAction: function (ctx: UserContext, cmd: MessageCommand) {
-
+        @VBModuleCommand("who")
+        public whoAction(ctx: UserContext, cmd: MessageCommand) : void
+        {
             var charName = cmd.Params.join(" ");
             let r = p_sysFunctions.getCharacterInfo(charName);
             if (isDefined(r)) {
@@ -998,22 +1086,9 @@ namespace VirtualBard {
             else {
                 ctx.SendChat("No character exists with name: " + charName);
             }
-        },
-        classAction: function (ctx: UserContext, cmd: MessageCommand) {
-            this.assertCurrentCharDefined(ctx, cmd);
-            var realClass = settings.classTypes[cmd.Params[0].toLowerCase()];
-            if (!isDefined(realClass)) {
-                ctx.SendChat("Class " + cmd.Params[0] + " could not be resolved to a real class. Character sheet will resort to a default instead");
-                ctx.Current.SentenceParts.Class = cmd.Params[0];
-                realClass = "";
-            }
-            else {
-                ctx.Current.SentenceParts.Class = realClass;
-            }
-            ctx.CurrentChar.SetAttribute("class", realClass);
-            ctx.CurrentChar.SetAttribute("inputClass", cmd.Params[0]);
-        },
-        metAction: function (ctx: UserContext, cmd: MessageCommand) {
+        }
+        @VBModuleCommand("met")
+        public metAction (ctx: UserContext, cmd: MessageCommand) : void{
             var charName = cmd.Params.join(" ");
             var r = p_sysFunctions.getCharacterInfo(charName);
             log("Char Info: " + r);
@@ -1027,35 +1102,51 @@ namespace VirtualBard {
             ctx.Current.SentenceParts.Name = charName;
             ctx.CurrentChar = r.Char;
 
-        },
-
-        sexAction: function (ctx: UserContext, cmd: MessageCommand) {
-            this.assertCurrentCharDefined(ctx, cmd);
-            var sex = this.parseSex(cmd.Params[0]);
+        }
+        @VBModuleCommand("c")
+        public classAction(ctx: UserContext, cmd: MessageCommand) : void {
+            CharacterFunctions.assertCurrentCharDefined(ctx, cmd);
+            var realClass = settings.classTypes[cmd.Params[0].toLowerCase()];
+            if (!isDefined(realClass)) {
+                ctx.SendChat("Class " + cmd.Params[0] + " could not be resolved to a real class. Character sheet will resort to a default instead");
+                ctx.Current.SentenceParts.Class = cmd.Params[0];
+                realClass = "";
+            }
+            else {
+                ctx.Current.SentenceParts.Class = realClass;
+            }
+            ctx.CurrentChar.SetAttribute("class", realClass);
+            ctx.CurrentChar.SetAttribute("inputClass", cmd.Params[0]);
+        }
+        @VBModuleCommand("s")
+        public sexAction (ctx: UserContext, cmd: MessageCommand) : void {
+            CharacterFunctions.assertCurrentCharDefined(ctx, cmd);
+            var sex = CharacterFunctions.parseSex(cmd.Params[0]);
             ctx.Current.SentenceParts.Sex = sex;
             ctx.CurrentChar.SetAttribute("sex", sex);
-        },
-
-        raceAction: function (ctx: UserContext, cmd: MessageCommand) {
-            this.assertCurrentCharDefined(ctx, cmd);
+        }
+        @VBModuleCommand("r")
+        public raceAction (ctx: UserContext, cmd: MessageCommand) {
+            CharacterFunctions.assertCurrentCharDefined(ctx, cmd);
             ctx.Current.SentenceParts.Race = cmd.Params.join(" ");
             ctx.CurrentChar.SetAttribute("race", ctx.Current.SentenceParts.Race);
         }
-        , parseSex: function (text) {
+        static parseSex (text) {
             var sex = settings.sexTypes[text.toLowerCase()];
             if (typeof sex == 'undefined') {
                 throw text + " could not be interpreted as a valid sex";
             }
             return sex;
         }
-        , assertCurrentCharDefined: function (ctx, cmd) {
+
+        static assertCurrentCharDefined (ctx, cmd) : void {
             if (typeof ctx.CurrentChar == 'undefined') {
                 throw cmd.Type + " requires a Character context to be set";
             }
         }
-
-
-    };
+    }
+    
+    
 
     var p_journalFunctions = {
         currentSentence: "",

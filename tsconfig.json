@@ -1,10 +1,8 @@
 {
     "compilerOptions": {
-        "target": "ES5"
+        "target": "ES5",
+        "experimentalDecorators": true
     },
-    "filesGlob": [
-        "src/**/*.ts",
-        "test/**/*.ts",
-        "typings/index.d.ts"
-    ]
+    "files": ["src/VirtualBard.ts"]
+    
 }

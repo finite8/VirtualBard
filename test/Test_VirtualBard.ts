@@ -4,16 +4,18 @@ namespace VirtualBard {
     /**
      * Provides a Mock for the Roll20 log function
      */
-    export function log(text: any)
-    {
-        console.log(text);
-    }
+    
     class Handler
     {
         EventType: string;
         Callbacks: any[];
     }
     let registeredHandlers : {event : string, callback : any}[] = [];
+// MOCK MEMBERS
+    export function log(text: any)
+    {
+        console.log(text);
+    }
     export var state = {VirtualBardState: null};
     /**
      * Provides a mock for the roll20 "on"" function
@@ -25,6 +27,37 @@ namespace VirtualBard {
             callback: func
         });
     }
+    export function findObjs(attrib : any) : any
+    {
+        return attrib;
+    }
+    export function createObj(typeName: string, initParam: any) : any
+    {
+        
+        initParam.type = typeName;
+        initParam.SecretProps = {};
+        initParam.get = function (propToGet: string, callback : (value : any) => void)
+        {
+            var val;
+            if (isAssigned(initParam.SecretProps[propToGet]))
+            {
+                val = null;
+            }
+            else
+            {
+                val = initParam.SecretProps[propToGet];
+            }
+            setTimeout(function () {
+                callback(val);
+            }, 0);
+        };
+        initParam.set = function (propToSet: string, value : any) 
+        {
+            initParam.SecretProps[propToSet] = value;
+        };
+        return initParam;
+    }
+// END MOCKS
 
     function RaiseEvent(eventType: string, ...rest: any[]) : void
     {
@@ -45,8 +78,8 @@ namespace VirtualBard {
             }
         }
     }
-    //Initialize();
-    //RaiseEvent("ready");
+    Initialize();
+    RaiseEvent("ready");
 
     var myString = "balls balls and balls and stuff<test id=\"1\" others=\"5\">someother <innerTest></innerTest></test>";
     var r = findTag(myString, "test", { id: "1" });
