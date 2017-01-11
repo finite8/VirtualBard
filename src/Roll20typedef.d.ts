@@ -92,8 +92,40 @@ declare function getAttrByName(character_id: string, attribute_name: string, val
  */
 declare function on(eventType: string, callback: (...args: any[]) => any): void;
 /**
+ * on<ChatMessage>("chat:message", function (msg: ChatMessage) { });
+ */
+declare function on<ChatMessage>(eventType: string, callback: (msg: ChatMessage) => void) : void;
+
+/**
  * 
  * Source: https://wiki.roll20.net/API:Objects#state
  * 
  */
 declare var state : any;
+/**
+ * Passed as a callback parameter for Roll20 events.
+ * 
+ * Source: https://wiki.roll20.net/API:Chat#Chat_Events
+ */
+interface ChatMessage {
+    /** The display name of the player or character that sent the message. */
+    who: string;
+    /** The ID of the player that sent the message. */
+    playerid: string;
+    /** One of "general", "rollresult", "gmrollresult", "emote", "whisper", "desc", or "api". */
+    type: string;
+    /** The contents of the chat message. If type is "rollresult", this will be a JSON string of data about the roll. */
+    content: any;
+    /** (type "rollresult" or "gmrollresult" only) The original text of the roll, eg: "2d10+5 fire damage" when the player types "/r 2d10+5 fire damage". This is equivalent to the use of content on messages with types other than "rollresult" or "gmrollresult". */
+    origRoll?: string;
+    /** (content contains one or more inline rolls only) An array of objects containing information about all inline rolls in the message. */
+    inlinerolls?: any[];
+    /** (content contains one or more roll templates only) The name of the template specified. */
+    rolltemplate?: string;
+    /** (type "whisper" only) The player ID of the person the whisper is sent to. If the whisper was sent to the GM without using his or her display name (ie, "/w gm text" instead of "/w Riley text" when Riley is the GM), or if the whisper was sent to a character without any controlling players, the value will be "gm". */
+    target?: string;
+    /** (type "whisper" only) The display name of the player or character the whisper was sent to. */
+    target_name?: string;
+    /** (type "api" only) An array of objects the user had selected when the command was entered. */
+    selected: any[];
+}

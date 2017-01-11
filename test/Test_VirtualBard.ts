@@ -69,7 +69,7 @@ namespace VirtualBard {
             }
             setTimeout(function () {
                 callback(val);
-            }, 0);
+            }, 1);
         };
         initParam.set = function (propToSet: string, value : any) 
         {
@@ -100,6 +100,18 @@ namespace VirtualBard {
                 }
             }
         }
+    }
+
+    function RaiseApiMessage(text: string) : void
+    {
+        console.log(JSON.stringify(registeredHandlers));
+        let msg = <ChatMessage> {
+            type : "api",
+            who : "TestFramework",
+            playerid : "0000000",
+            content: text
+        };
+        RaiseEvent("chat:message", msg);
     }
     Initialize();
     RaiseEvent("ready");
@@ -173,4 +185,10 @@ namespace VirtualBard {
         }
     }
     Assert.TestClass(new FunctionTests());
+    // while (!isInitialized)
+    // {
+    //     // loop the loop
+    // }
+    RaiseApiMessage("!vb DUMP");
+    console.log(new Date());
 }

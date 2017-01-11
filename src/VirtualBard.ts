@@ -142,7 +142,9 @@ namespace VirtualBard {
                             
                             settingsHandout.set("gmnotes", "<Settings>" + notes + "</Settings>");
                             LoadState();
+                            log(completionCallback);
                             if (isAssigned(completionCallback)) {
+                                log("Raising callback");
                                 completionCallback();
                             }
                         }, 100);
@@ -151,7 +153,9 @@ namespace VirtualBard {
                         log("Existing: " + JSON.stringify(loadedSettings));
                         settings = _.extend(DefaultSettings(), loadedSettings);
                         LoadState();
+                        log(completionCallback);
                         if (isAssigned(completionCallback)) {
+                            log("Raising callback");
                             completionCallback();
                         }
                         return;
@@ -1235,9 +1239,9 @@ namespace VirtualBard {
             if (typeof this.journalHandout !== 'undefined') {
                 return this.journalHandout;
             }
-            var handouts = findObjs<Handout>({ _type: "handout", name: settings.AdventureLog });
+            var handouts = findObjs<Handout>({ _type: "handout", name: settings.AdventureLogConfiguration.HandoutName });
             if (handouts.length == 0) {
-                var h = createObj("handout", { name: settings.AdventureLog, inplayerjournals: "all", controlledby: "all", notes: "" });
+                var h = createObj("handout", { name: settings.AdventureLogConfiguration.HandoutName, inplayerjournals: "all", controlledby: "all", notes: "" });
                 this.journalHandout = h;
             }
             else {
@@ -1367,11 +1371,11 @@ namespace VirtualBard {
     var contextStore = {};
     export function Initialize() {
         Setup(function () {
-            on("chat:message", function (msg: string) {
+            on<ChatMessage>("chat:message", function (msg: ChatMessage) {
                 log(msg);
                 //try
                 //{
-                if (msg.indexOf("!vb DUMP") == 0)
+                if (msg.content.indexOf("!vb DUMP") == 0)
                 {
                     DumpEnvironment();
                 }
@@ -1392,17 +1396,19 @@ namespace VirtualBard {
                 //    ctx.SendChat("Invalid command: " + err.message);
                 //}
             });
+            isInitialized = true;
         });
     };
-    function DumpEnvironment() : void
+    export let isInitialized : boolean = false;
+    export function DumpEnvironment() : void
     {
         log("========= DUMPING ENVIRONMENT ===========");
         log("======= BEGIN GAME STATE =========");
         log(JSON.stringify(state));
-        log("======= BEGIN VIRTUALBARD ENVIRONMENT =========")
-        log(this);
-        log("========= END DUMP ===========")
-        log("If you are collecting this as part of submitting a bug or issue, ")
+        log("======= BEGIN VIRTUALBARD ENVIRONMENT =========");
+        log(JSON.stringify(this));
+        log("========= END DUMP ===========");
+        log("If you are collecting this as part of submitting a bug or issue, use a service like http://pastebin.com/ to provide a link to the full dump when submitting");
     }
 
 
