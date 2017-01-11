@@ -27,10 +27,30 @@ namespace VirtualBard {
             callback: func
         });
     }
-    export function findObjs(attrib : any) : any
+    export function findObjs(attrib : any) : any[]
     {
-        return attrib;
+        let results : any[] = [];
+        for (let i = 0; i < mockedObjects.length; i++)
+        {
+            var obj = mockedObjects[i];
+            let isMatch = true;
+            for (let p in attrib)
+            {
+                if (attrib[p] !== obj[p])
+                {
+                    isMatch = false;
+                    break;
+                }
+            }
+            if (isMatch)
+            {
+                results.push(obj);
+            }
+        }
+        return results;
     }
+    let mockedObjects : any[] = [];
+    let globalId : number = 1;
     export function createObj(typeName: string, initParam: any) : any
     {
         
@@ -55,6 +75,9 @@ namespace VirtualBard {
         {
             initParam.SecretProps[propToSet] = value;
         };
+        initParam.id = globalId;
+        globalId++;
+        mockedObjects.push(initParam);
         return initParam;
     }
 // END MOCKS

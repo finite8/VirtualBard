@@ -20,6 +20,26 @@
 
 namespace VirtualBard {
 // === DECORATORS ===
+    class EventClass
+    {
+        AdventureStateChanged : {(...params : any[]) : void}[] = [];
+        EventLogged : {(eventData: string) : void}[] = [];
+        public RaiseAdventureStateChanged() : void {
+            this.RaiseEvent(this.AdventureStateChanged);
+        }
+        public LogEvent(eventData: string) : void {
+            this.RaiseEvent(this.EventLogged, eventData);
+        }
+        private RaiseEvent(eventArray : {(...params : any[]) : void}[], ...args : any[]) : void
+        {
+            eventArray.forEach(element => {
+                element.apply(args);
+            });
+        }
+
+    }
+    let Events = new EventClass();
+    
     class VBModuleInfo
     {
         Prefix: string;
@@ -365,6 +385,20 @@ namespace VirtualBard {
 
         }
     }
+    enum LogDirections
+    {
+        Up,
+        Down
+    }
+    class AdventureLogConfig {
+        HandoutName: string = "Adventure Log";
+        LogDirection: LogDirections = LogDirections.Down;
+    }
+    class VirtualBardStateOutputConfig {
+        HandoutName: string = "Virtual Bard State";
+        LogDirection: LogDirections = LogDirections.Up;
+        Enabled: boolean = true;
+    }
     class CalendarConfig {
         HoursInDay: number;
         DaysInWeek: number;
@@ -379,11 +413,16 @@ namespace VirtualBard {
     }
     /** A calendar that provides specific logic. This is designed to work with the D&D calendar, but could be expanded for other calendar systems  */
     export class AdventureCalendar {
+        private LogChange() : void
+        {
+            Events.LogEvent(`Time changed: ${this.GetDisplayText()}`);
+            Events.RaiseAdventureStateChanged();
+        }
         public CurrentDuration: Duration = new Duration();
         public AddHours(hours: number): void {
             this.CurrentDuration.Hour += hours;
             this.CurrentDuration.BalanceTime();
-            
+            this.LogChange();
         }
 
         public GetDisplayText(): string {
@@ -405,11 +444,13 @@ namespace VirtualBard {
         public ProgressDayPortion(): void {
             let currentPortion = Duration.GetDayTimePortion(this.CurrentDuration.Hour);
             this.AddHours(currentPortion.EndHour - this.CurrentDuration.Hour);
+            this.LogChange();
         }
         /** Sets the current hour in the day to a different time. Will not progress to the next day*/
         public SetTime(hour: number): void {
             this.CurrentDuration.Hour = hour;
             this.CurrentDuration.BalanceTime();
+            this.LogChange();
         }
         /** Moves to the next day. If portion is not provided, hour will be set to 6 (default: dawn)*/
         public StartNextDay(portion?: string): void {
@@ -428,6 +469,7 @@ namespace VirtualBard {
             // if we got this far, portion was not declared, so just move to 6am.
             this.CurrentDuration.Hour = 6;
             this.CurrentDuration.BalanceTime();
+            this.LogChange();
         }
 
 
@@ -476,6 +518,13 @@ namespace VirtualBard {
             this.CurrentLocation.Name = "An unknown location";
             this.CurrentLocation.ArrivalDuration = new Duration();
         }
+
+        private LogMove() : void
+        {
+            // add function to write nicely to the adventure log
+            Events.LogEvent(`Location Changed: ${this.GetLocationPath()}`);
+            Events.RaiseAdventureStateChanged();
+        }
         
         public CurrentLocation: LocationInfo;
         /** Returns a simple path of the current location. Useful for informative purposes */
@@ -505,6 +554,8 @@ namespace VirtualBard {
             this.CurrentLocation = new LocationInfo();
             this.CurrentLocation.ArrivalDuration = new Duration(CurrentState.Calendar.CurrentDuration);
             this.CurrentLocation.Name = locationName;
+            this.LogMove();
+            
         }
         public EnterSubLocation(locationName: string) : void
         {
@@ -519,6 +570,7 @@ namespace VirtualBard {
                 newLoc.Name = locationName;
                 newLoc.ParentLocation = this.CurrentLocation;
                 this.CurrentLocation = newLoc;
+                this.LogMove();
             }
         }
         /** 
@@ -533,6 +585,7 @@ namespace VirtualBard {
             }
             let oldLoc = this.CurrentLocation;
             this.CurrentLocation = this.CurrentLocation.ParentLocation;
+            this.LogMove();
             return oldLoc;
 
         }
@@ -749,7 +802,8 @@ namespace VirtualBard {
                 , { mode: CharacterMode.SingleHandout, canCreate: false } // then try to find a single handout
                 , { mode: CharacterMode.Sheet, canCreate: true } // otherwise, fall back and create the character sheet
             ],
-            AdventureLog: "Adventure Log"
+            AdventureLogConfiguration: new AdventureLogConfig(),
+            VirtualBardStateOutputConfiguration: new VirtualBardStateOutputConfig()
             , CalendarConfiguration: <CalendarConfig>
             {
                 HoursInDay: 24

@@ -28,6 +28,29 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 var VirtualBard;
 (function (VirtualBard) {
     // === DECORATORS ===
+    var EventClass = (function () {
+        function EventClass() {
+            this.AdventureStateChanged = [];
+            this.EventLogged = [];
+        }
+        EventClass.prototype.RaiseAdventureStateChanged = function () {
+            this.RaiseEvent(this.AdventureStateChanged);
+        };
+        EventClass.prototype.LogEvent = function (eventData) {
+            this.RaiseEvent(this.EventLogged, eventData);
+        };
+        EventClass.prototype.RaiseEvent = function (eventArray) {
+            var args = [];
+            for (var _i = 1; _i < arguments.length; _i++) {
+                args[_i - 1] = arguments[_i];
+            }
+            eventArray.forEach(function (element) {
+                element.apply(args);
+            });
+        };
+        return EventClass;
+    }());
+    var Events = new EventClass();
     var VBModuleInfo = (function () {
         function VBModuleInfo() {
             this.Commands = [];
@@ -315,6 +338,26 @@ var VirtualBard;
         return Duration;
     }());
     VirtualBard.Duration = Duration;
+    var LogDirections;
+    (function (LogDirections) {
+        LogDirections[LogDirections["Up"] = 0] = "Up";
+        LogDirections[LogDirections["Down"] = 1] = "Down";
+    })(LogDirections || (LogDirections = {}));
+    var AdventureLogConfig = (function () {
+        function AdventureLogConfig() {
+            this.HandoutName = "Adventure Log";
+            this.LogDirection = LogDirections.Down;
+        }
+        return AdventureLogConfig;
+    }());
+    var VirtualBardStateOutputConfig = (function () {
+        function VirtualBardStateOutputConfig() {
+            this.HandoutName = "Virtual Bard State";
+            this.LogDirection = LogDirections.Up;
+            this.Enabled = true;
+        }
+        return VirtualBardStateOutputConfig;
+    }());
     var CalendarConfig = (function () {
         function CalendarConfig() {
         }
@@ -325,9 +368,14 @@ var VirtualBard;
         function AdventureCalendar() {
             this.CurrentDuration = new Duration();
         }
+        AdventureCalendar.prototype.LogChange = function () {
+            Events.LogEvent("Time changed: " + this.GetDisplayText());
+            Events.RaiseAdventureStateChanged();
+        };
         AdventureCalendar.prototype.AddHours = function (hours) {
             this.CurrentDuration.Hour += hours;
             this.CurrentDuration.BalanceTime();
+            this.LogChange();
         };
         AdventureCalendar.prototype.GetDisplayText = function () {
             var useDuration = new Duration(VirtualBard.settings.CalendarConfiguration.Start);
@@ -345,11 +393,13 @@ var VirtualBard;
         AdventureCalendar.prototype.ProgressDayPortion = function () {
             var currentPortion = Duration.GetDayTimePortion(this.CurrentDuration.Hour);
             this.AddHours(currentPortion.EndHour - this.CurrentDuration.Hour);
+            this.LogChange();
         };
         /** Sets the current hour in the day to a different time. Will not progress to the next day*/
         AdventureCalendar.prototype.SetTime = function (hour) {
             this.CurrentDuration.Hour = hour;
             this.CurrentDuration.BalanceTime();
+            this.LogChange();
         };
         /** Moves to the next day. If portion is not provided, hour will be set to 6 (default: dawn)*/
         AdventureCalendar.prototype.StartNextDay = function (portion) {
@@ -368,6 +418,7 @@ var VirtualBard;
             // if we got this far, portion was not declared, so just move to 6am.
             this.CurrentDuration.Hour = 6;
             this.CurrentDuration.BalanceTime();
+            this.LogChange();
         };
         return AdventureCalendar;
     }());
@@ -405,6 +456,11 @@ var VirtualBard;
             this.CurrentLocation.Name = "An unknown location";
             this.CurrentLocation.ArrivalDuration = new Duration();
         }
+        LocationManager.prototype.LogMove = function () {
+            // add function to write nicely to the adventure log
+            Events.LogEvent("Location Changed: " + this.GetLocationPath());
+            Events.RaiseAdventureStateChanged();
+        };
         /** Returns a simple path of the current location. Useful for informative purposes */
         LocationManager.prototype.GetLocationPath = function () {
             var loc = this.CurrentLocation;
@@ -426,6 +482,7 @@ var VirtualBard;
             this.CurrentLocation = new LocationInfo();
             this.CurrentLocation.ArrivalDuration = new Duration(VirtualBard.CurrentState.Calendar.CurrentDuration);
             this.CurrentLocation.Name = locationName;
+            this.LogMove();
         };
         LocationManager.prototype.EnterSubLocation = function (locationName) {
             if (!isAssigned(this.CurrentLocation)) {
@@ -437,6 +494,7 @@ var VirtualBard;
                 newLoc.Name = locationName;
                 newLoc.ParentLocation = this.CurrentLocation;
                 this.CurrentLocation = newLoc;
+                this.LogMove();
             }
         };
         /**
@@ -449,6 +507,7 @@ var VirtualBard;
             }
             var oldLoc = this.CurrentLocation;
             this.CurrentLocation = this.CurrentLocation.ParentLocation;
+            this.LogMove();
             return oldLoc;
         };
         return LocationManager;
@@ -645,7 +704,8 @@ var VirtualBard;
                 ,
                 { mode: CharacterMode.Sheet, canCreate: true } // otherwise, fall back and create the character sheet
             ],
-            AdventureLog: "Adventure Log",
+            AdventureLogConfiguration: new AdventureLogConfig(),
+            VirtualBardStateOutputConfiguration: new VirtualBardStateOutputConfig(),
             CalendarConfiguration: {
                 HoursInDay: 24,
                 DaysInWeek: 10,
@@ -1360,9 +1420,25 @@ var VirtualBard;
     }
     VirtualBard.on = on;
     function findObjs(attrib) {
-        return attrib;
+        var results = [];
+        for (var i = 0; i < mockedObjects.length; i++) {
+            var obj = mockedObjects[i];
+            var isMatch = true;
+            for (var p in attrib) {
+                if (attrib[p] !== obj[p]) {
+                    isMatch = false;
+                    break;
+                }
+            }
+            if (isMatch) {
+                results.push(obj);
+            }
+        }
+        return results;
     }
     VirtualBard.findObjs = findObjs;
+    var mockedObjects = [];
+    var globalId = 1;
     function createObj(typeName, initParam) {
         initParam.type = typeName;
         initParam.SecretProps = {};
@@ -1381,6 +1457,9 @@ var VirtualBard;
         initParam.set = function (propToSet, value) {
             initParam.SecretProps[propToSet] = value;
         };
+        initParam.id = globalId;
+        globalId++;
+        mockedObjects.push(initParam);
         return initParam;
     }
     VirtualBard.createObj = createObj;
