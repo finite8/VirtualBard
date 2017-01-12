@@ -1,5 +1,6 @@
 /// <reference path="..\src\VirtualBard.ts" />"
 /// <reference path="..\test\TestFramework.ts" />"
+
 namespace VirtualBard {
     /**
      * Provides a Mock for the Roll20 log function
@@ -20,6 +21,7 @@ namespace VirtualBard {
     {
         console.log(text);
     }
+
     export var state = {VirtualBardState: null};
     /**
      * Provides a mock for the roll20 "on"" function
@@ -31,6 +33,10 @@ namespace VirtualBard {
             callback: func
         });
         console.log(`Event "${eventType}" binding added`);
+    }
+    export function sendChat(src : string, msg : string) : void
+    {
+        console.log(`CHATMSG(sender=${src}): ${msg}`);
     }
     export function findObjs(attrib : any) : any[]
     {
@@ -63,7 +69,6 @@ namespace VirtualBard {
         initParam.SecretProps = {};
         initParam.get = function (propToGet: string, callback : (value : any) => void)
         {
-            log("get");
             var val;
             if (isAssigned(initParam.SecretProps[propToGet]))
             {
@@ -89,6 +94,19 @@ namespace VirtualBard {
         mockedObjects.push(initParam);
         return initParam;
     }
+    export var _ : any = {};
+    _.extend = function(dest: any, from: any)
+    {
+        for (let p in from)
+        {
+            if (from.hasOwnProperty(p))
+            {
+                dest[p] = from[p];
+            }
+        }
+    }
+    
+    
 // END MOCKS
 
     function RaiseEvent(eventType: string, ...rest: any[]) : void
@@ -99,7 +117,7 @@ namespace VirtualBard {
             if (h.event == eventType)
             {
                 let f : () => void = h.callback;
-                console.log(`Raising event ${eventType} on delegate with arguments [${rest}]`);
+                console.log(`Raising event ${eventType} on delegate with arguments [${JSON.stringify(rest)}]`);
                 if (isAssigned(rest) && rest.length > 0)
                 {
                     f.apply(this, rest);
@@ -128,7 +146,7 @@ namespace VirtualBard {
     }
     Initialize();
     RaiseEvent("ready");
-
+    SaveState();
     var myString = "balls balls and balls and stuff<test id=\"1\" others=\"5\">someother <innerTest></innerTest></test>";
     var r = findTag(myString, "test", { id: "1" });
    
@@ -211,6 +229,9 @@ namespace VirtualBard {
             throw "Initialization failure. VirtualBard engine did not initialize";
         }
     }
+    
     RaiseApiMessage("!vb DUMP");
-    console.log(new Date());
+    RaiseApiMessage("!vb -enableDebug");
+    RaiseApiMessage("!vb -disableDebug");
+    RaiseApiMessage("!vb -help");
 }

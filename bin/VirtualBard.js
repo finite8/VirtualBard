@@ -36,6 +36,15 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 */
 var VirtualBard;
 (function (VirtualBard) {
+    VirtualBard.revision = "$Id: e68f4b2a762299f0b4bec642ccae5434ee14c791 $";
+    var debugMode = false;
+    function Debug(text) {
+        if (debugMode == true) {
+            var stack = (new Error()).stack;
+            log(text + " -- " + stack.split("\n")[2].trim());
+        }
+    }
+    VirtualBard.Debug = Debug;
     // === DECORATORS ===
     var EventClass = (function () {
         function EventClass() {
@@ -126,6 +135,7 @@ var VirtualBard;
     //  
     function Setup(completionCallback) {
         on("ready", function () {
+            Debug("Ready Fired");
             var settingsHandout = p_sysFunctions.getHandout("VBSettings", true, false);
             settingsHandout.get("gmnotes", function (d) {
                 try {
@@ -145,23 +155,20 @@ var VirtualBard;
                             var notes = JSON.stringify(VirtualBard.settings);
                             settingsHandout.set("gmnotes", "<Settings>" + notes + "</Settings>");
                             LoadState();
-                            log(completionCallback);
                             if (isAssigned(completionCallback)) {
-                                log("Raising callback");
                                 completionCallback();
                             }
                         }, 100);
                     }
                     else {
-                        log("Existing: " + JSON.stringify(loadedSettings));
+                        //log("Existing: " + JSON.stringify(loadedSettings));
                         VirtualBard.settings = _.extend(DefaultSettings(), loadedSettings);
                         LoadState();
-                        log(completionCallback);
+                        //log(completionCallback);
                         if (isAssigned(completionCallback)) {
-                            log("Raising callback");
+                            //log("Raising callback");
                             completionCallback();
                         }
-                        return;
                     }
                 }
                 catch (err) {
@@ -545,6 +552,7 @@ var VirtualBard;
     function SaveState() {
         state.VirtualBardState = VirtualBard.CurrentState;
     }
+    VirtualBard.SaveState = SaveState;
     /**
      * This is a core Character data container. This stores all of the core character data properties. It is up the the individual
      * reference implementation to store the data in its respecive container.
@@ -905,7 +913,7 @@ var VirtualBard;
         if (addedSomething) {
             result.Commands.push(cmd);
         }
-        log(result);
+        Debug(result);
         return result;
     }
     function processAction(user, data) {
@@ -976,6 +984,21 @@ var VirtualBard;
         }
         //}
     }
+    var SystemFunctions = (function () {
+        function SystemFunctions() {
+        }
+        SystemFunctions.prototype.enableDebug = function (ctx, cmd) {
+            debugMode = true;
+            Debug("Debug Mode enabled");
+        };
+        return SystemFunctions;
+    }());
+    __decorate([
+        VBModuleCommand("enableDebug")
+    ], SystemFunctions.prototype, "enableDebug", null);
+    SystemFunctions = __decorate([
+        VBModule("vb")
+    ], SystemFunctions);
     var CharacterFunctions = CharacterFunctions_1 = (function () {
         function CharacterFunctions() {
         }
@@ -1015,7 +1038,7 @@ var VirtualBard;
         CharacterFunctions.prototype.metAction = function (ctx, cmd) {
             var charName = cmd.Params.join(" ");
             var r = p_sysFunctions.getCharacterInfo(charName);
-            log("Char Info: " + r);
+            Debug("Char Info: " + r);
             if (!r.IsNew) {
                 sendMessage(ctx.UserName, "The party is already aware of " + charName);
             }
@@ -1090,13 +1113,13 @@ var VirtualBard;
             this.currentSentence = this.currentSentence + text;
             var j = this.getJournalHandout();
             j.get("notes", function (n) {
-                log("Existing Notes:" + n);
+                Debug("Existing Notes:" + n);
                 setTimeout(function () {
                     j.set("notes", n + text);
                 }, 100);
             });
             //j.notes = (j.notes || "") + text;
-            log("Writting to log:" + text);
+            Debug("Writting to log:" + text);
         },
         appendJournalLine: function (text) {
             this.appendJournalText(text + "<br>");
@@ -1118,7 +1141,7 @@ var VirtualBard;
                 this.journalHandout = h;
             }
             else {
-                log("found existing");
+                Debug("found existing");
                 this.journalHandout = handouts[0];
             }
             this.appendJournalLine(new Date(Date.now()).toLocaleString());
@@ -1132,7 +1155,7 @@ var VirtualBard;
         /** Gets or Creates a handout with the specified name. */
         getHandout: function (handoutName, isHidden, isEditable) {
             var hos = findObjs({ _type: "handout", name: handoutName });
-            log(hos);
+            Debug(hos);
             if (isAssigned(hos) && hos.length > 0) {
                 return hos[0];
             }
@@ -1157,7 +1180,7 @@ var VirtualBard;
         },
         findCharacterSheet: function (charName) {
             var shts = findObjs({ _type: "character", name: charName });
-            log(shts);
+            Debug(shts);
             if (shts.length == 0) {
                 return null;
             }
@@ -1171,26 +1194,26 @@ var VirtualBard;
         getCharacterInfo: function (charName) {
             for (var i = 0; i < VirtualBard.settings.CharacterResolutionOrder.length; i++) {
                 var m = VirtualBard.settings.CharacterResolutionOrder[i];
-                log("Attmepting to resolve character '" + charName + "' using mode '" + CharacterMode[m.mode] + "'");
+                Debug("Attmepting to resolve character '" + charName + "' using mode '" + CharacterMode[m.mode] + "'");
                 switch (m.mode) {
                     case CharacterMode.Sheet:
                         var char = this.findCharacterSheet(charName);
                         var isNew = void 0;
                         if (char == null) {
-                            log("Could not find Character sheet for " + charName);
+                            Debug("Could not find Character sheet for " + charName);
                             if (m.canCreate) {
-                                log("Creating...");
+                                Debug("Creating...");
                                 char = createObj("character", { name: charName, inplayerjournals: "all", controlledby: "all" });
                                 this.setCharacterAttribute(char, VBAttributes.IsMet, true);
                                 isNew = true;
                             }
                             else {
-                                log("canCreate=false. Continuing...");
+                                Debug("canCreate=false. Continuing...");
                                 continue;
                             }
                         }
                         else {
-                            log("Found!");
+                            Debug("Found!");
                             isNew = !(this.getCharacterAttribute(char, VBAttributes.IsMet) == true);
                         }
                         var ret = new CharacterFindResult();
@@ -1206,7 +1229,7 @@ var VirtualBard;
         getCharacterAttribute: function (char, attribName) {
             assertVariableAssigned(char, "char");
             if (!isDefined(char.id)) {
-                log(char);
+                Debug(char);
                 throw "id was undefined on char parameter";
             }
             var result = getAttrByName(char.id, attribName);
@@ -1214,13 +1237,11 @@ var VirtualBard;
         },
         setCharacterAttribute: function (char, attribName, newValue) {
             var attribs = findObjs({ _type: "attribute", _characterid: char.id, name: attribName });
-            log("setting attribute");
-            log(char);
             //log(findObjs({_type:"attribute", _characterid:char.id}));
             if (attribs.length == 0) {
                 // we instead need to insert it
                 var newAttrib = createObj("attribute", { name: attribName, current: newValue, characterid: char.id });
-                log("Inserting attribute" + attribName);
+                Debug("Inserting attribute" + attribName);
             }
             else if (attribs.length > 1) {
                 throw attribs.length + " attributes discovered with name " + attribName;
@@ -1231,10 +1252,11 @@ var VirtualBard;
         }
     };
     var contextStore = {};
+    /** Initializes the VirtualBard engine */
     function Initialize() {
         Setup(function () {
             on("chat:message", function (msg) {
-                log(msg);
+                Debug(msg);
                 //try
                 //{
                 if (msg.content.indexOf("!vb DUMP") == 0) {
@@ -1264,14 +1286,28 @@ var VirtualBard;
     VirtualBard.isInitialized = false;
     function DumpEnvironment() {
         log("========= DUMPING ENVIRONMENT ===========");
+        log("Timestamp: " + new Date());
         log("======= BEGIN GAME STATE =========");
-        log(JSON.stringify(state));
+        log(SmartStringify(state));
         log("======= BEGIN VIRTUALBARD ENVIRONMENT =========");
-        log(JSON.stringify(this));
+        log(SmartStringify(VirtualBard));
         log("========= END DUMP ===========");
         log("If you are collecting this as part of submitting a bug or issue, use a service like http://pastebin.com/ to provide a link to the full dump when submitting");
     }
     VirtualBard.DumpEnvironment = DumpEnvironment;
+    function SmartStringify(obj) {
+        var seen = [];
+        return JSON.stringify(obj, function (key, val) {
+            if (val != null && typeof val == "object") {
+                if (seen.indexOf(val) >= 0) {
+                    return "[DISCARDED]";
+                }
+                seen.push(val);
+            }
+            return val;
+        });
+    }
+    VirtualBard.SmartStringify = SmartStringify;
     var CharacterFunctions_1;
 })(VirtualBard || (VirtualBard = {}));
 /// <reference path="..\src\VirtualBard.ts" />"

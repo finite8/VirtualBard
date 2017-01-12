@@ -20,6 +20,16 @@
 
 namespace VirtualBard {
     export let revision : string = "$Id$";
+    let debugMode = false;
+    export function Debug(text: any) : void
+    {
+        if (debugMode == true)
+        {
+            let stack = (new Error()).stack;
+            log(`${JSON.stringify(text)} -- ${stack.split("\n")[2].trim()}`);
+        }
+    }
+
 // === DECORATORS ===
     class EventClass
     {
@@ -39,12 +49,13 @@ namespace VirtualBard {
         }
 
     }
-    let Events = new EventClass();
+    export let Events = new EventClass();
     
     class VBModuleInfo
     {
         Prefix: string;
         Name: string;
+        Description: string = "No additional info available";
         Commands : VBModuleCommandInfo[] = [];
         PostDelegates: {(ctx: UserContext) : void}[] = [];
         public GetCommandInfo(cmdText: string) : VBModuleCommandInfo
@@ -64,10 +75,11 @@ namespace VirtualBard {
     class VBModuleCommandInfo
     {
         Prefix: string;
+        Description: string = "No additional info available";
         Delegate: (ctx: UserContext, cmd: MessageCommand) => void;
     }
 
-    let LoadedModules : VBModuleInfo[] = [];
+    export let LoadedModules : VBModuleInfo[] = [];
 
     
 
@@ -83,16 +95,21 @@ namespace VirtualBard {
         }
         let newM = new VBModuleInfo();
         newM.Name = className;
+        
         LoadedModules.push(newM);
         return newM;
     }
-    function VBModule(modulePrefix: string) {
+    function VBModule(modulePrefix: string, description?: string) {
         return function (constructor: Function) {
             //console.log(modulePrefix);
             //console.log(constructor);
             
             let m = GetVBModuleForClass((<any> constructor).name); // cast to any to shut typescript up
             m.Prefix = modulePrefix;
+            if (isAssigned(description))
+            {
+                m.Description = description;
+            }
             //console.log(JSON.stringify(LoadedModules));
         }
     }
@@ -104,7 +121,7 @@ namespace VirtualBard {
         };
     }
 
-    function VBModuleCommand(commandText: string) {
+    function VBModuleCommand(commandText: string, description?: string) {
         return function (target: any, propertyKey: string, descriptor: PropertyDescriptor) {
             //console.log(commandText);
             //console.log(target);
@@ -113,7 +130,10 @@ namespace VirtualBard {
             let cmd = new VBModuleCommandInfo();
             cmd.Prefix = commandText;
             cmd.Delegate = descriptor.value;
-            
+            if (isAssigned(description))
+            {
+                cmd.Description = description;
+            }
             m.Commands.push(cmd);
             //console.log(JSON.stringify(LoadedModules));
         };
@@ -122,7 +142,7 @@ namespace VirtualBard {
     function Setup(completionCallback: () => void): void {
         
         on("ready", function () {
-            log("Ready fired");
+            Debug("Ready Fired");
             let settingsHandout = p_sysFunctions.getHandout("VBSettings", true, false);
             settingsHandout.get("gmnotes", function (d) {
                 try {
@@ -146,20 +166,20 @@ namespace VirtualBard {
                             
                             settingsHandout.set("gmnotes", "<Settings>" + notes + "</Settings>");
                             LoadState();
-                            log(completionCallback);
+                            
                             if (isAssigned(completionCallback)) {
-                                log("Raising callback");
+                                
                                 completionCallback();
                             }
                         }, 100);
                     }
                     else {
-                        log("Existing: " + JSON.stringify(loadedSettings));
+                        //log("Existing: " + JSON.stringify(loadedSettings));
                         settings = _.extend(DefaultSettings(), loadedSettings);
                         LoadState();
-                        log(completionCallback);
+                        //log(completionCallback);
                         if (isAssigned(completionCallback)) {
-                            log("Raising callback");
+                            //log("Raising callback");
                             completionCallback();
                         }
                         
@@ -622,7 +642,7 @@ namespace VirtualBard {
         }
     }
 
-    function SaveState() : void
+    export function SaveState() : void
     {
         state.VirtualBardState = CurrentState;
     }
@@ -992,7 +1012,9 @@ namespace VirtualBard {
         var parts = msg.content.trim().split(" ");
         var index = 1;
         var addedSomething = false;
+        
         for (var i = index; i < parts.length; i++) {
+            
             var part = parts[i];
             if (part.indexOf("-") == 0) {
                 // we have a command initiator
@@ -1004,6 +1026,7 @@ namespace VirtualBard {
                 }
                 else {
                     cmd.Type = part;
+                    addedSomething = true;
                 }
             }
             else {
@@ -1016,7 +1039,7 @@ namespace VirtualBard {
         }
 
 
-        log(result);
+        Debug(result);
         return result;
     }
 
@@ -1070,6 +1093,7 @@ namespace VirtualBard {
 
         //if (typeof processingFunction !== 'undefined') {
         var errors = [];
+        
         for (var i = 0; i < data.Commands.length; i++) {
             
             try {
@@ -1103,9 +1127,37 @@ namespace VirtualBard {
         //}
 
     }
-   
+    @VBModule("vb", "Virtual bard system functions. For maintenence and configuration functions")
+    class SystemFunctions
+    {
+        @VBModuleCommand("enableDebug")
+        public enableDebug(ctx: UserContext, cmd: MessageCommand) : void
+        {
+            debugMode = true;
+            Debug("Debug Mode enabled");
+        }
+
+        @VBModuleCommand("disableDebug")
+        public disableDebug(ctx: UserContext, cmd: MessageCommand) : void
+        {
+            debugMode = false;
+            log("Debug Mode disabled");
+        }
+
+        @VBModuleCommand("help")
+        public listModules(ctx: UserContext, cmd: MessageCommand) : void
+        {   
+            let result = "Available VirtualBard commands:\r\n";
+            for (let i = 0; i < LoadedModules.length; i++)
+            {
+                let m = LoadedModules[i];
+                result += `!${m.Prefix} = ${m.Name} \r\n    ${m.Description}\r\n`;
+            }
+            ctx.SendChat(result);
+        }
+    }
     
-    @VBModule("c")
+    @VBModule("c", "NPC and PC related functions. Covers encounters and information logging")
     class CharacterFunctions
     {
         @VBModulePostAction()
@@ -1150,7 +1202,7 @@ namespace VirtualBard {
         public metAction (ctx: UserContext, cmd: MessageCommand) : void{
             var charName = cmd.Params.join(" ");
             var r = p_sysFunctions.getCharacterInfo(charName);
-            log("Char Info: " + r);
+            Debug("Char Info: " + r);
             if (!r.IsNew) {
                 sendMessage(ctx.UserName, "The party is already aware of " + charName);
             }
@@ -1213,7 +1265,7 @@ namespace VirtualBard {
             this.currentSentence = this.currentSentence + text;
             var j = this.getJournalHandout();
             j.get("notes", function (n) {
-                log("Existing Notes:" + n);
+                Debug("Existing Notes:" + n);
                 setTimeout(function () {
                     j.set("notes", n + text);
                 }, 100);
@@ -1221,7 +1273,7 @@ namespace VirtualBard {
             });
 
             //j.notes = (j.notes || "") + text;
-            log("Writting to log:" + text);
+            Debug("Writting to log:" + text);
         },
         appendJournalLine: function (text) {
 
@@ -1246,7 +1298,7 @@ namespace VirtualBard {
                 this.journalHandout = h;
             }
             else {
-                log("found existing");
+                Debug("found existing");
                 this.journalHandout = handouts[0];
             }
             this.appendJournalLine(new Date(Date.now()).toLocaleString());
@@ -1262,7 +1314,7 @@ namespace VirtualBard {
         getHandout: function (handoutName: string, isHidden: boolean, isEditable: boolean): Handout {
             let hos = findObjs<Handout>({ _type: "handout", name: handoutName });
 
-            log(hos);
+            Debug(hos);
             if (isAssigned(hos) && hos.length > 0) {
                 return hos[0];
             }
@@ -1288,7 +1340,7 @@ namespace VirtualBard {
         },
         findCharacterSheet: function (charName) {
             var shts = findObjs({ _type: "character", name: charName });
-            log(shts);
+            Debug(shts);
             if (shts.length == 0) {
                 return null;
             }
@@ -1303,26 +1355,26 @@ namespace VirtualBard {
 
             for (var i = 0; i < settings.CharacterResolutionOrder.length; i++) {
                 let m = settings.CharacterResolutionOrder[i];
-                log("Attmepting to resolve character '" + charName + "' using mode '" + CharacterMode[m.mode] + "'")
+                Debug("Attmepting to resolve character '" + charName + "' using mode '" + CharacterMode[m.mode] + "'")
                 switch (m.mode) {
                     case CharacterMode.Sheet:
                         var char = this.findCharacterSheet(charName);
                         let isNew: boolean;
                         if (char == null) {
-                            log("Could not find Character sheet for " + charName)
+                            Debug("Could not find Character sheet for " + charName)
                             if (m.canCreate) {
-                                log("Creating...");
+                                Debug("Creating...");
                                 char = createObj<Character>("character", { name: charName, inplayerjournals: "all", controlledby: "all" });
                                 this.setCharacterAttribute(char, VBAttributes.IsMet, true);
                                 isNew = true;
                             }
                             else {
-                                log("canCreate=false. Continuing...");
+                                Debug("canCreate=false. Continuing...");
                                 continue;
                             }
                         }
                         else {
-                            log("Found!")
+                            Debug("Found!")
                             isNew = !(this.getCharacterAttribute(char, VBAttributes.IsMet) == true);
                         }
                         var ret = new CharacterFindResult();
@@ -1342,7 +1394,7 @@ namespace VirtualBard {
         getCharacterAttribute: function (char: Character, attribName: string): any {
             assertVariableAssigned(char, "char");
             if (!isDefined(char.id)) {
-                log(char);
+                Debug(char);
                 throw "id was undefined on char parameter";
             }
             var result = getAttrByName(char.id, attribName);
@@ -1352,13 +1404,11 @@ namespace VirtualBard {
         setCharacterAttribute: function (char: Character, attribName: string, newValue: any): void {
 
             var attribs = findObjs<Attribute>({ _type: "attribute", _characterid: char.id, name: attribName });
-            log("setting attribute");
-            log(char);
             //log(findObjs({_type:"attribute", _characterid:char.id}));
             if (attribs.length == 0) {
                 // we instead need to insert it
                 var newAttrib = createObj<Attribute>("attribute", { name: attribName, current: newValue, characterid: char.id });
-                log("Inserting attribute" + attribName);
+                Debug("Inserting attribute" + attribName);
             }
             else if (attribs.length > 1) {
                 throw attribs.length + " attributes discovered with name " + attribName;
@@ -1374,7 +1424,7 @@ namespace VirtualBard {
     export function Initialize() {
         Setup(function () {
             on<ChatMessage>("chat:message", function (msg: ChatMessage) {
-                log(msg);
+                Debug(msg);
                 //try
                 //{
                 if (msg.content.indexOf("!vb DUMP") == 0)
@@ -1405,6 +1455,7 @@ namespace VirtualBard {
     export function DumpEnvironment() : void
     {
         log("========= DUMPING ENVIRONMENT ===========");
+        log(`Timestamp: ${new Date()}`);
         log("======= BEGIN GAME STATE =========");
         log(SmartStringify(state));
         log("======= BEGIN VIRTUALBARD ENVIRONMENT =========");
