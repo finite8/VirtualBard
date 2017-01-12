@@ -119,10 +119,13 @@ namespace VirtualBard {
     }
 //  
     function Setup(completionCallback: () => void): void {
+        
         on("ready", function () {
+            log("Ready fired");
             let settingsHandout = p_sysFunctions.getHandout("VBSettings", true, false);
             settingsHandout.get("gmnotes", function (d) {
                 try {
+                    
                     var tag = findTag(d, "Settings");
                     let setData: boolean = true;
                     var loadedSettings;
@@ -133,7 +136,7 @@ namespace VirtualBard {
                             setData = false;
                         }
                     }
-
+                    
                     if (setData) { // we need to populate it with conifg data as it was blank.
                         settings = DefaultSettings();
                         setTimeout(function () {
@@ -158,8 +161,9 @@ namespace VirtualBard {
                             log("Raising callback");
                             completionCallback();
                         }
-                        return;
+                        
                     }
+                    
                 }
                 catch (err) {
                     // we dont REALLY care about the error. we will however use it to indicate some kind of json error
@@ -167,7 +171,7 @@ namespace VirtualBard {
                     settings = DefaultSettings();
                 }
 
-
+                
 
             });
         });
@@ -829,10 +833,6 @@ namespace VirtualBard {
                 , { Name: "Midnight", StartHour: 0, EndHour: 1 }
                 , { Name: "Moondark", StartHour: 1, EndHour: 6 }
             ]
-
-
-
-
         }
     };
     export let settings = DefaultSettings();
@@ -1369,6 +1369,7 @@ namespace VirtualBard {
     };
 
     var contextStore = {};
+    /** Initializes the VirtualBard engine */
     export function Initialize() {
         Setup(function () {
             on<ChatMessage>("chat:message", function (msg: ChatMessage) {
@@ -1404,11 +1405,25 @@ namespace VirtualBard {
     {
         log("========= DUMPING ENVIRONMENT ===========");
         log("======= BEGIN GAME STATE =========");
-        log(JSON.stringify(state));
+        log(SmartStringify(state));
         log("======= BEGIN VIRTUALBARD ENVIRONMENT =========");
-        log(JSON.stringify(this));
+        log(SmartStringify(VirtualBard));
         log("========= END DUMP ===========");
         log("If you are collecting this as part of submitting a bug or issue, use a service like http://pastebin.com/ to provide a link to the full dump when submitting");
+    }
+    export function SmartStringify(obj : any) : string
+    {
+        var seen = [];
+
+        return JSON.stringify(obj, function(key, val) {
+        if (val != null && typeof val == "object") {
+                if (seen.indexOf(val) >= 0) {
+                    return "[DISCARDED]";
+                }
+                seen.push(val);
+            }
+            return val;
+        });
     }
 
 

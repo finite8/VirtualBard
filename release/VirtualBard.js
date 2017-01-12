@@ -37,6 +37,29 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 var VirtualBard;
 (function (VirtualBard) {
     // === DECORATORS ===
+    var EventClass = (function () {
+        function EventClass() {
+            this.AdventureStateChanged = [];
+            this.EventLogged = [];
+        }
+        EventClass.prototype.RaiseAdventureStateChanged = function () {
+            this.RaiseEvent(this.AdventureStateChanged);
+        };
+        EventClass.prototype.LogEvent = function (eventData) {
+            this.RaiseEvent(this.EventLogged, eventData);
+        };
+        EventClass.prototype.RaiseEvent = function (eventArray) {
+            var args = [];
+            for (var _i = 1; _i < arguments.length; _i++) {
+                args[_i - 1] = arguments[_i];
+            }
+            eventArray.forEach(function (element) {
+                element.apply(args);
+            });
+        };
+        return EventClass;
+    }());
+    var Events = new EventClass();
     var VBModuleInfo = (function () {
         function VBModuleInfo() {
             this.Commands = [];
@@ -75,7 +98,7 @@ var VirtualBard;
         return function (constructor) {
             //console.log(modulePrefix);
             //console.log(constructor);
-            var m = GetVBModuleForClass(constructor.name);
+            var m = GetVBModuleForClass(constructor.name); // cast to any to shut typescript up
             m.Prefix = modulePrefix;
             //console.log(JSON.stringify(LoadedModules));
         };
@@ -120,10 +143,11 @@ var VirtualBard;
                         VirtualBard.settings = DefaultSettings();
                         setTimeout(function () {
                             var notes = JSON.stringify(VirtualBard.settings);
-                            log("New data to assign: " + notes);
                             settingsHandout.set("gmnotes", "<Settings>" + notes + "</Settings>");
                             LoadState();
+                            log(completionCallback);
                             if (isAssigned(completionCallback)) {
+                                log("Raising callback");
                                 completionCallback();
                             }
                         }, 100);
@@ -132,7 +156,9 @@ var VirtualBard;
                         log("Existing: " + JSON.stringify(loadedSettings));
                         VirtualBard.settings = _.extend(DefaultSettings(), loadedSettings);
                         LoadState();
+                        log(completionCallback);
                         if (isAssigned(completionCallback)) {
+                            log("Raising callback");
                             completionCallback();
                         }
                         return;
@@ -325,6 +351,26 @@ var VirtualBard;
         return Duration;
     }());
     VirtualBard.Duration = Duration;
+    var LogDirections;
+    (function (LogDirections) {
+        LogDirections[LogDirections["Up"] = 0] = "Up";
+        LogDirections[LogDirections["Down"] = 1] = "Down";
+    })(LogDirections || (LogDirections = {}));
+    var AdventureLogConfig = (function () {
+        function AdventureLogConfig() {
+            this.HandoutName = "Adventure Log";
+            this.LogDirection = LogDirections.Down;
+        }
+        return AdventureLogConfig;
+    }());
+    var VirtualBardStateOutputConfig = (function () {
+        function VirtualBardStateOutputConfig() {
+            this.HandoutName = "Virtual Bard State";
+            this.LogDirection = LogDirections.Up;
+            this.Enabled = true;
+        }
+        return VirtualBardStateOutputConfig;
+    }());
     var CalendarConfig = (function () {
         function CalendarConfig() {
         }
@@ -335,9 +381,14 @@ var VirtualBard;
         function AdventureCalendar() {
             this.CurrentDuration = new Duration();
         }
+        AdventureCalendar.prototype.LogChange = function () {
+            Events.LogEvent("Time changed: " + this.GetDisplayText());
+            Events.RaiseAdventureStateChanged();
+        };
         AdventureCalendar.prototype.AddHours = function (hours) {
             this.CurrentDuration.Hour += hours;
             this.CurrentDuration.BalanceTime();
+            this.LogChange();
         };
         AdventureCalendar.prototype.GetDisplayText = function () {
             var useDuration = new Duration(VirtualBard.settings.CalendarConfiguration.Start);
@@ -355,11 +406,13 @@ var VirtualBard;
         AdventureCalendar.prototype.ProgressDayPortion = function () {
             var currentPortion = Duration.GetDayTimePortion(this.CurrentDuration.Hour);
             this.AddHours(currentPortion.EndHour - this.CurrentDuration.Hour);
+            this.LogChange();
         };
         /** Sets the current hour in the day to a different time. Will not progress to the next day*/
         AdventureCalendar.prototype.SetTime = function (hour) {
             this.CurrentDuration.Hour = hour;
             this.CurrentDuration.BalanceTime();
+            this.LogChange();
         };
         /** Moves to the next day. If portion is not provided, hour will be set to 6 (default: dawn)*/
         AdventureCalendar.prototype.StartNextDay = function (portion) {
@@ -378,6 +431,7 @@ var VirtualBard;
             // if we got this far, portion was not declared, so just move to 6am.
             this.CurrentDuration.Hour = 6;
             this.CurrentDuration.BalanceTime();
+            this.LogChange();
         };
         return AdventureCalendar;
     }());
@@ -415,6 +469,11 @@ var VirtualBard;
             this.CurrentLocation.Name = "An unknown location";
             this.CurrentLocation.ArrivalDuration = new Duration();
         }
+        LocationManager.prototype.LogMove = function () {
+            // add function to write nicely to the adventure log
+            Events.LogEvent("Location Changed: " + this.GetLocationPath());
+            Events.RaiseAdventureStateChanged();
+        };
         /** Returns a simple path of the current location. Useful for informative purposes */
         LocationManager.prototype.GetLocationPath = function () {
             var loc = this.CurrentLocation;
@@ -436,6 +495,7 @@ var VirtualBard;
             this.CurrentLocation = new LocationInfo();
             this.CurrentLocation.ArrivalDuration = new Duration(VirtualBard.CurrentState.Calendar.CurrentDuration);
             this.CurrentLocation.Name = locationName;
+            this.LogMove();
         };
         LocationManager.prototype.EnterSubLocation = function (locationName) {
             if (!isAssigned(this.CurrentLocation)) {
@@ -447,6 +507,7 @@ var VirtualBard;
                 newLoc.Name = locationName;
                 newLoc.ParentLocation = this.CurrentLocation;
                 this.CurrentLocation = newLoc;
+                this.LogMove();
             }
         };
         /**
@@ -459,6 +520,7 @@ var VirtualBard;
             }
             var oldLoc = this.CurrentLocation;
             this.CurrentLocation = this.CurrentLocation.ParentLocation;
+            this.LogMove();
             return oldLoc;
         };
         return LocationManager;
@@ -655,7 +717,8 @@ var VirtualBard;
                 ,
                 { mode: CharacterMode.Sheet, canCreate: true } // otherwise, fall back and create the character sheet
             ],
-            AdventureLog: "Adventure Log",
+            AdventureLogConfiguration: new AdventureLogConfig(),
+            VirtualBardStateOutputConfiguration: new VirtualBardStateOutputConfig(),
             CalendarConfiguration: {
                 HoursInDay: 24,
                 DaysInWeek: 10,
@@ -913,30 +976,7 @@ var VirtualBard;
         }
         //}
     }
-    function printJournalHelp(data) {
-        sendMessage(data.UserName, "!j +met <name> --- Adds a new event for meeting a person. Creates a new person entry switches context to them");
-    }
-    function processCharacterAction(ctx, cmd) {
-        if (cmd.Type == "-met") {
-            p_characterFunctions.metAction(ctx, cmd);
-        }
-        else if (cmd.Type == "-who") {
-            p_characterFunctions.whoAction(ctx, cmd);
-        }
-        else if (cmd.Type == "-r") {
-            p_characterFunctions.raceAction(ctx, cmd);
-        }
-        else if (cmd.Type == "-s") {
-            p_characterFunctions.sexAction(ctx, cmd);
-        }
-        else if (cmd.Type == "-c") {
-            p_characterFunctions.classAction(ctx, cmd);
-        }
-        else {
-            throw "Character command not recognized: " + cmd.Type;
-        }
-    }
-    var CharacterFunctions = (function () {
+    var CharacterFunctions = CharacterFunctions_1 = (function () {
         function CharacterFunctions() {
         }
         CharacterFunctions.prototype.logAction = function (ctx) {
@@ -972,8 +1012,20 @@ var VirtualBard;
                 ctx.SendChat("No character exists with name: " + charName);
             }
         };
+        CharacterFunctions.prototype.metAction = function (ctx, cmd) {
+            var charName = cmd.Params.join(" ");
+            var r = p_sysFunctions.getCharacterInfo(charName);
+            log("Char Info: " + r);
+            if (!r.IsNew) {
+                sendMessage(ctx.UserName, "The party is already aware of " + charName);
+            }
+            else {
+            }
+            ctx.Current.SentenceParts.Name = charName;
+            ctx.CurrentChar = r.Char;
+        };
         CharacterFunctions.prototype.classAction = function (ctx, cmd) {
-            assertCurrentCharDefined(ctx, cmd);
+            CharacterFunctions_1.assertCurrentCharDefined(ctx, cmd);
             var realClass = VirtualBard.settings.classTypes[cmd.Params[0].toLowerCase()];
             if (!isDefined(realClass)) {
                 ctx.SendChat("Class " + cmd.Params[0] + " could not be resolved to a real class. Character sheet will resort to a default instead");
@@ -986,6 +1038,29 @@ var VirtualBard;
             ctx.CurrentChar.SetAttribute("class", realClass);
             ctx.CurrentChar.SetAttribute("inputClass", cmd.Params[0]);
         };
+        CharacterFunctions.prototype.sexAction = function (ctx, cmd) {
+            CharacterFunctions_1.assertCurrentCharDefined(ctx, cmd);
+            var sex = CharacterFunctions_1.parseSex(cmd.Params[0]);
+            ctx.Current.SentenceParts.Sex = sex;
+            ctx.CurrentChar.SetAttribute("sex", sex);
+        };
+        CharacterFunctions.prototype.raceAction = function (ctx, cmd) {
+            CharacterFunctions_1.assertCurrentCharDefined(ctx, cmd);
+            ctx.Current.SentenceParts.Race = cmd.Params.join(" ");
+            ctx.CurrentChar.SetAttribute("race", ctx.Current.SentenceParts.Race);
+        };
+        CharacterFunctions.parseSex = function (text) {
+            var sex = VirtualBard.settings.sexTypes[text.toLowerCase()];
+            if (typeof sex == 'undefined') {
+                throw text + " could not be interpreted as a valid sex";
+            }
+            return sex;
+        };
+        CharacterFunctions.assertCurrentCharDefined = function (ctx, cmd) {
+            if (typeof ctx.CurrentChar == 'undefined') {
+                throw cmd.Type + " requires a Character context to be set";
+            }
+        };
         return CharacterFunctions;
     }());
     __decorate([
@@ -995,97 +1070,20 @@ var VirtualBard;
         VBModuleCommand("who")
     ], CharacterFunctions.prototype, "whoAction", null);
     __decorate([
+        VBModuleCommand("met")
+    ], CharacterFunctions.prototype, "metAction", null);
+    __decorate([
         VBModuleCommand("c")
     ], CharacterFunctions.prototype, "classAction", null);
-    CharacterFunctions = __decorate([
+    __decorate([
+        VBModuleCommand("s")
+    ], CharacterFunctions.prototype, "sexAction", null);
+    __decorate([
+        VBModuleCommand("r")
+    ], CharacterFunctions.prototype, "raceAction", null);
+    CharacterFunctions = CharacterFunctions_1 = __decorate([
         VBModule("c")
     ], CharacterFunctions);
-    var p_characterFunctions = {
-        // logResults: function (context) {
-        //     var sp = context.Current.SentenceParts;
-        //     if (isDefined(sp) && isDefined(sp.Name)) {
-        //         var sent = "";
-        //         sent = sent + "The party met [" + sp.Name + "]";
-        //         if (isAnyDefined(sp.Race, sp.Sex, sp.Class)) {
-        //             sent = sent + ", a";
-        //             if (isDefined(sp.Sex)) {
-        //                 sent = sent + " " + sp.Sex;
-        //             }
-        //             if (isDefined(sp.Race)) {
-        //                 sent = sent + " " + sp.Race;
-        //             }
-        //             if (isDefined(sp.Class)) {
-        //                 sent = sent + " " + sp.Class;
-        //             }
-        //         }
-        //         sent = sent + ".";
-        //         p_journalFunctions.appendJournalLine(sent);
-        //     }
-        // },
-        appendBio: function (char, text) {
-        },
-        // whoAction: function (ctx: UserContext, cmd: MessageCommand) {
-        //     var charName = cmd.Params.join(" ");
-        //     let r = p_sysFunctions.getCharacterInfo(charName);
-        //     if (isDefined(r)) {
-        //         // we have the character
-        //         ctx.CurrentChar = r.Char;
-        //         ctx.SendChat("Character context set to: " + r.Char.GetAttribute<string>("Name"));
-        //     }
-        //     else {
-        //         ctx.SendChat("No character exists with name: " + charName);
-        //     }
-        // },
-        classAction: function (ctx, cmd) {
-            this.assertCurrentCharDefined(ctx, cmd);
-            var realClass = VirtualBard.settings.classTypes[cmd.Params[0].toLowerCase()];
-            if (!isDefined(realClass)) {
-                ctx.SendChat("Class " + cmd.Params[0] + " could not be resolved to a real class. Character sheet will resort to a default instead");
-                ctx.Current.SentenceParts.Class = cmd.Params[0];
-                realClass = "";
-            }
-            else {
-                ctx.Current.SentenceParts.Class = realClass;
-            }
-            ctx.CurrentChar.SetAttribute("class", realClass);
-            ctx.CurrentChar.SetAttribute("inputClass", cmd.Params[0]);
-        },
-        metAction: function (ctx, cmd) {
-            var charName = cmd.Params.join(" ");
-            var r = p_sysFunctions.getCharacterInfo(charName);
-            log("Char Info: " + r);
-            if (!r.IsNew) {
-                sendMessage(ctx.UserName, "The party is already aware of " + charName);
-            }
-            else {
-            }
-            ctx.Current.SentenceParts.Name = charName;
-            ctx.CurrentChar = r.Char;
-        },
-        sexAction: function (ctx, cmd) {
-            this.assertCurrentCharDefined(ctx, cmd);
-            var sex = this.parseSex(cmd.Params[0]);
-            ctx.Current.SentenceParts.Sex = sex;
-            ctx.CurrentChar.SetAttribute("sex", sex);
-        },
-        raceAction: function (ctx, cmd) {
-            this.assertCurrentCharDefined(ctx, cmd);
-            ctx.Current.SentenceParts.Race = cmd.Params.join(" ");
-            ctx.CurrentChar.SetAttribute("race", ctx.Current.SentenceParts.Race);
-        },
-        parseSex: function (text) {
-            var sex = VirtualBard.settings.sexTypes[text.toLowerCase()];
-            if (typeof sex == 'undefined') {
-                throw text + " could not be interpreted as a valid sex";
-            }
-            return sex;
-        },
-        assertCurrentCharDefined: function (ctx, cmd) {
-            if (typeof ctx.CurrentChar == 'undefined') {
-                throw cmd.Type + " requires a Character context to be set";
-            }
-        }
-    };
     var p_journalFunctions = {
         currentSentence: "",
         appendJournalText: function (text) {
@@ -1114,9 +1112,9 @@ var VirtualBard;
             if (typeof this.journalHandout !== 'undefined') {
                 return this.journalHandout;
             }
-            var handouts = findObjs({ _type: "handout", name: VirtualBard.settings.AdventureLog });
+            var handouts = findObjs({ _type: "handout", name: VirtualBard.settings.AdventureLogConfiguration.HandoutName });
             if (handouts.length == 0) {
-                var h = createObj("handout", { name: VirtualBard.settings.AdventureLog, inplayerjournals: "all", controlledby: "all", notes: "" });
+                var h = createObj("handout", { name: VirtualBard.settings.AdventureLogConfiguration.HandoutName, inplayerjournals: "all", controlledby: "all", notes: "" });
                 this.journalHandout = h;
             }
             else {
@@ -1239,7 +1237,7 @@ var VirtualBard;
                 log(msg);
                 //try
                 //{
-                if (msg.indexOf("!vb DUMP") == 0) {
+                if (msg.content.indexOf("!vb DUMP") == 0) {
                     DumpEnvironment();
                 }
                 else {
@@ -1258,19 +1256,23 @@ var VirtualBard;
                 //    ctx.SendChat("Invalid command: " + err.message);
                 //}
             });
+            VirtualBard.isInitialized = true;
         });
     }
     VirtualBard.Initialize = Initialize;
     ;
+    VirtualBard.isInitialized = false;
     function DumpEnvironment() {
         log("========= DUMPING ENVIRONMENT ===========");
         log("======= BEGIN GAME STATE =========");
         log(JSON.stringify(state));
         log("======= BEGIN VIRTUALBARD ENVIRONMENT =========");
-        log(this);
+        log(JSON.stringify(this));
         log("========= END DUMP ===========");
-        log("If you are collecting this as part of submitting a bug or issue, ");
+        log("If you are collecting this as part of submitting a bug or issue, use a service like http://pastebin.com/ to provide a link to the full dump when submitting");
     }
+    VirtualBard.DumpEnvironment = DumpEnvironment;
+    var CharacterFunctions_1;
 })(VirtualBard || (VirtualBard = {}));
 /// <reference path="..\src\VirtualBard.ts" />"
 var VirtualBard;

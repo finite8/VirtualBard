@@ -12,6 +12,10 @@ namespace VirtualBard {
     }
     let registeredHandlers : {event : string, callback : any}[] = [];
 // MOCK MEMBERS
+    export function setTimeout(func : () => void, timeout: number) : void
+    {
+        func();
+    }
     export function log(text: any)
     {
         console.log(text);
@@ -26,6 +30,7 @@ namespace VirtualBard {
             event: eventType,
             callback: func
         });
+        console.log(`Event "${eventType}" binding added`);
     }
     export function findObjs(attrib : any) : any[]
     {
@@ -58,6 +63,7 @@ namespace VirtualBard {
         initParam.SecretProps = {};
         initParam.get = function (propToGet: string, callback : (value : any) => void)
         {
+            log("get");
             var val;
             if (isAssigned(initParam.SecretProps[propToGet]))
             {
@@ -67,9 +73,12 @@ namespace VirtualBard {
             {
                 val = initParam.SecretProps[propToGet];
             }
+            // console.log(`get method for property "${propToGet}" on object "${initParam}" invoking callback`);
+            // callback(val);
             setTimeout(function () {
+                console.log(`get method for property "${propToGet}" on object "${initParam}" invoking callback`);
                 callback(val);
-            }, 1);
+            }, 0);
         };
         initParam.set = function (propToSet: string, value : any) 
         {
@@ -90,14 +99,18 @@ namespace VirtualBard {
             if (h.event == eventType)
             {
                 let f : () => void = h.callback;
+                console.log(`Raising event ${eventType} on delegate with arguments [${rest}]`);
                 if (isAssigned(rest) && rest.length > 0)
                 {
-                    f();
+                    f.apply(this, rest);
+                    
                 }
                 else
                 {
-                    f.apply(this, rest);
+                    f();
+                    
                 }
+                
             }
         }
     }
@@ -185,10 +198,19 @@ namespace VirtualBard {
         }
     }
     Assert.TestClass(new FunctionTests());
-    // while (!isInitialized)
-    // {
-    //     // loop the loop
-    // }
+    let started = new Date();
+    while (!isInitialized)
+    {
+        // loop the loop
+        let timeSpent = (new Date().getTime()) - started.getTime();
+        
+        if (timeSpent > 2000)
+        {
+            // wait 2 seconds. More than enough time.
+            
+            throw "Initialization failure. VirtualBard engine did not initialize";
+        }
+    }
     RaiseApiMessage("!vb DUMP");
     console.log(new Date());
 }

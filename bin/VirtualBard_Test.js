@@ -117,6 +117,7 @@ var VirtualBard;
     //  
     function Setup(completionCallback) {
         VirtualBard.on("ready", function () {
+            VirtualBard.log("Ready fired");
             var settingsHandout = p_sysFunctions.getHandout("VBSettings", true, false);
             settingsHandout.get("gmnotes", function (d) {
                 try {
@@ -132,11 +133,13 @@ var VirtualBard;
                     }
                     if (setData) {
                         VirtualBard.settings = DefaultSettings();
-                        setTimeout(function () {
+                        VirtualBard.setTimeout(function () {
                             var notes = JSON.stringify(VirtualBard.settings);
                             settingsHandout.set("gmnotes", "<Settings>" + notes + "</Settings>");
                             LoadState();
+                            VirtualBard.log(completionCallback);
                             if (isAssigned(completionCallback)) {
+                                VirtualBard.log("Raising callback");
                                 completionCallback();
                             }
                         }, 100);
@@ -145,10 +148,11 @@ var VirtualBard;
                         VirtualBard.log("Existing: " + JSON.stringify(loadedSettings));
                         VirtualBard.settings = _.extend(DefaultSettings(), loadedSettings);
                         LoadState();
+                        VirtualBard.log(completionCallback);
                         if (isAssigned(completionCallback)) {
+                            VirtualBard.log("Raising callback");
                             completionCallback();
                         }
-                        return;
                     }
                 }
                 catch (err) {
@@ -618,7 +622,7 @@ var VirtualBard;
             var refObj = this;
             this.CharSheet.get("gmnotes", function (t) {
                 var htmlEdt = findTag(t, "CharData").setText(JSON.stringify(refObj.Data));
-                setTimeout(function () {
+                VirtualBard.setTimeout(function () {
                     refObj.CharSheet.set("gmnotes", htmlEdt.getText());
                 }, 100);
             });
@@ -1078,7 +1082,7 @@ var VirtualBard;
             var j = this.getJournalHandout();
             j.get("notes", function (n) {
                 VirtualBard.log("Existing Notes:" + n);
-                setTimeout(function () {
+                VirtualBard.setTimeout(function () {
                     j.set("notes", n + text);
                 }, 100);
             });
@@ -1099,9 +1103,9 @@ var VirtualBard;
             if (typeof this.journalHandout !== 'undefined') {
                 return this.journalHandout;
             }
-            var handouts = VirtualBard.findObjs({ _type: "handout", name: VirtualBard.settings.AdventureLog });
+            var handouts = VirtualBard.findObjs({ _type: "handout", name: VirtualBard.settings.AdventureLogConfiguration.HandoutName });
             if (handouts.length == 0) {
-                var h = VirtualBard.createObj("handout", { name: VirtualBard.settings.AdventureLog, inplayerjournals: "all", controlledby: "all", notes: "" });
+                var h = VirtualBard.createObj("handout", { name: VirtualBard.settings.AdventureLogConfiguration.HandoutName, inplayerjournals: "all", controlledby: "all", notes: "" });
                 this.journalHandout = h;
             }
             else {
@@ -1218,13 +1222,14 @@ var VirtualBard;
         }
     };
     var contextStore = {};
+    /** Initializes the VirtualBard engine */
     function Initialize() {
         Setup(function () {
             VirtualBard.on("chat:message", function (msg) {
                 VirtualBard.log(msg);
                 //try
                 //{
-                if (msg.indexOf("!vb DUMP") == 0) {
+                if (msg.content.indexOf("!vb DUMP") == 0) {
                     DumpEnvironment();
                 }
                 else {
@@ -1243,19 +1248,35 @@ var VirtualBard;
                 //    ctx.SendChat("Invalid command: " + err.message);
                 //}
             });
+            VirtualBard.isInitialized = true;
         });
     }
     VirtualBard.Initialize = Initialize;
     ;
+    VirtualBard.isInitialized = false;
     function DumpEnvironment() {
         VirtualBard.log("========= DUMPING ENVIRONMENT ===========");
         VirtualBard.log("======= BEGIN GAME STATE =========");
-        VirtualBard.log(JSON.stringify(VirtualBard.state));
+        VirtualBard.log(SmartStringify(VirtualBard.state));
         VirtualBard.log("======= BEGIN VIRTUALBARD ENVIRONMENT =========");
-        VirtualBard.log(this);
+        VirtualBard.log(SmartStringify(VirtualBard));
         VirtualBard.log("========= END DUMP ===========");
-        VirtualBard.log("If you are collecting this as part of submitting a bug or issue, ");
+        VirtualBard.log("If you are collecting this as part of submitting a bug or issue, use a service like http://pastebin.com/ to provide a link to the full dump when submitting");
     }
+    VirtualBard.DumpEnvironment = DumpEnvironment;
+    function SmartStringify(obj) {
+        var seen = [];
+        return JSON.stringify(obj, function (key, val) {
+            if (val != null && typeof val == "object") {
+                if (seen.indexOf(val) >= 0) {
+                    return "[DISCARDED]";
+                }
+                seen.push(val);
+            }
+            return val;
+        });
+    }
+    VirtualBard.SmartStringify = SmartStringify;
     var CharacterFunctions_1;
 })(VirtualBard || (VirtualBard = {}));
 /// <reference path="../typings/globals/underscore/index.d.ts" />
@@ -1404,6 +1425,10 @@ var VirtualBard;
     }());
     var registeredHandlers = [];
     // MOCK MEMBERS
+    function setTimeout(func, timeout) {
+        func();
+    }
+    VirtualBard.setTimeout = setTimeout;
     function log(text) {
         console.log(text);
     }
@@ -1417,6 +1442,7 @@ var VirtualBard;
             event: eventType,
             callback: func
         });
+        console.log("Event \"" + eventType + "\" binding added");
     }
     VirtualBard.on = on;
     function findObjs(attrib) {
@@ -1443,6 +1469,7 @@ var VirtualBard;
         initParam.type = typeName;
         initParam.SecretProps = {};
         initParam.get = function (propToGet, callback) {
+            log("get");
             var val;
             if (VirtualBard.isAssigned(initParam.SecretProps[propToGet])) {
                 val = null;
@@ -1450,7 +1477,10 @@ var VirtualBard;
             else {
                 val = initParam.SecretProps[propToGet];
             }
+            // console.log(`get method for property "${propToGet}" on object "${initParam}" invoking callback`);
+            // callback(val);
             setTimeout(function () {
+                console.log("get method for property \"" + propToGet + "\" on object \"" + initParam + "\" invoking callback");
                 callback(val);
             }, 0);
         };
@@ -1473,14 +1503,25 @@ var VirtualBard;
             var h = registeredHandlers[i];
             if (h.event == eventType) {
                 var f = h.callback;
+                console.log("Raising event " + eventType + " on delegate with arguments [" + rest + "]");
                 if (VirtualBard.isAssigned(rest) && rest.length > 0) {
-                    f();
+                    f.apply(this, rest);
                 }
                 else {
-                    f.apply(this, rest);
+                    f();
                 }
             }
         }
+    }
+    function RaiseApiMessage(text) {
+        console.log(JSON.stringify(registeredHandlers));
+        var msg = {
+            type: "api",
+            who: "TestFramework",
+            playerid: "0000000",
+            content: text
+        };
+        RaiseEvent("chat:message", msg);
     }
     VirtualBard.Initialize();
     RaiseEvent("ready");
@@ -1553,4 +1594,15 @@ var VirtualBard;
         return FunctionTests;
     }());
     Assert.TestClass(new FunctionTests());
+    var started = new Date();
+    while (!VirtualBard.isInitialized) {
+        // loop the loop
+        var timeSpent = (new Date().getTime()) - started.getTime();
+        if (timeSpent > 2000) {
+            // wait 2 seconds. More than enough time.
+            throw "Initialization failure. VirtualBard engine did not initialize";
+        }
+    }
+    RaiseApiMessage("!vb DUMP");
+    console.log(new Date());
 })(VirtualBard || (VirtualBard = {}));
