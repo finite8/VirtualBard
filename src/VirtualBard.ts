@@ -19,6 +19,7 @@
 
 
 namespace VirtualBard {
+    export let revision : string = "$Id$";
 // === DECORATORS ===
     class EventClass
     {
