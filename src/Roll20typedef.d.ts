@@ -75,6 +75,12 @@ declare function findObjs<T extends Roll20Object>(attributes: T) : T[];
 declare function findObjs(attributes: any) : any;
 
 /**
+ * Will execute the provided callback funtion on each object, and if the callback returns true, the object will be included in the result array.
+ * Source: https://wiki.roll20.net/API:Objects#filterObjs.28callback.29
+ */
+declare function filterObjs(callback : (obj : Roll20Object) => boolean) : Roll20Object[];
+
+/**
  * Gets the value of an attribute, using the default value from the character sheet if the attribute is not present.
  * getAttrByName will only get the value of the attribute, not the attribute object itself. If you wish to reference properties of the attribute other than "current" or "max", or if you wish to change properties of the attribute, you must use one of the other functions above, such as findObjs.
  * Note that there is an inconsistency of usage when attempting to get a value from a repeating section whose name contains mixed case. The name of the repeating section needs to be passed all lower case. The rest of the attribute_name needs to be in it's original case. (IE: "repeating_Skills_XyZ_Name" will not work. "repeating_skills_XyZ_Name" will work and will fetch the value in "repeating_Skills_XyZ_Name").

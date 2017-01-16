@@ -37,6 +37,7 @@ namespace VirtualBard {
     export function sendChat(src : string, msg : string) : void
     {
         console.log(`CHATMSG(sender=${src}): ${msg}`);
+        RaiseApiMessage(msg);
     }
     export function findObjs(attrib : any) : any[]
     {
@@ -150,8 +151,19 @@ namespace VirtualBard {
     var myString = "balls balls and balls and stuff<test id=\"1\" others=\"5\">someother <innerTest></innerTest></test>";
     var r = findTag(myString, "test", { id: "1" });
    
-    Assert.AreEqual("HTMLEdit Basic test", `balls balls and balls and stuff<test id="1" others="5">[Prepended]someother <innerTest>[SetText]</innerTest>[Appended]</test>`
+    class CommonFunctionTests
+    {
+        TestHTMLEdit() {
+            Assert.AreEqual("HTMLEdit Basic test", `balls balls and balls and stuff<test id="1" others="5">[Prepended]someother <innerTest>[SetText]</innerTest>[Appended]</test>`
         , r.appendText("[Appended]").prependText("[Prepended]").findTag("innerTest").setText("[SetText]").getText());
+        }
+        TestWildcard() {
+            Assert.IsTrue("Basic Wildcard", matchRuleShort("SomeString", "*meStr*"));
+            Assert.IsTrue("arry in Larry Barry", matchRuleShort("Larry McBarry","*arry*"));
+            Assert.IsFalse("drry in Larry Barry", matchRuleShort("Larry McBarry","*drry*"));
+        }
+    }
+    
     class FunctionTests
     {
         TestDuration() {
@@ -215,7 +227,9 @@ namespace VirtualBard {
             Assert.AreEqual("Total time at root is 20 hours", "20 hours", CurrentState.Location.CurrentLocation.GetDuration().GetDisplayText());
         }
     }
+    Assert.TestClass(new CommonFunctionTests());
     Assert.TestClass(new FunctionTests());
+    
     let started = new Date();
     while (!isInitialized)
     {
@@ -234,4 +248,8 @@ namespace VirtualBard {
     RaiseApiMessage("!vb -enableDebug");
     RaiseApiMessage("!vb -disableDebug");
     RaiseApiMessage("!vb -help");
+    RaiseApiMessage("!vb -help !c");
+    
+    RaiseApiMessage("!c -find *arry*");
+    
 }

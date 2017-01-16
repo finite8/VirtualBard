@@ -41,7 +41,7 @@ var VirtualBard;
     function Debug(text) {
         if (debugMode == true) {
             var stack = (new Error()).stack;
-            log(text + " -- " + stack.split("\n")[2].trim());
+            log(JSON.stringify(text) + " -- " + stack.split("\n")[2].trim());
         }
     }
     VirtualBard.Debug = Debug;
@@ -68,9 +68,10 @@ var VirtualBard;
         };
         return EventClass;
     }());
-    var Events = new EventClass();
+    VirtualBard.Events = new EventClass();
     var VBModuleInfo = (function () {
         function VBModuleInfo() {
+            this.Description = "No additional info available";
             this.Commands = [];
             this.PostDelegates = [];
         }
@@ -87,28 +88,32 @@ var VirtualBard;
     }());
     var VBModuleCommandInfo = (function () {
         function VBModuleCommandInfo() {
+            this.Description = "No additional info available";
         }
         return VBModuleCommandInfo;
     }());
-    var LoadedModules = [];
+    VirtualBard.LoadedModules = [];
     function GetVBModuleForClass(className) {
-        for (var i = 0; i < LoadedModules.length; i++) {
-            var m = LoadedModules[i];
+        for (var i = 0; i < VirtualBard.LoadedModules.length; i++) {
+            var m = VirtualBard.LoadedModules[i];
             if (m.Name == className) {
                 return m;
             }
         }
         var newM = new VBModuleInfo();
         newM.Name = className;
-        LoadedModules.push(newM);
+        VirtualBard.LoadedModules.push(newM);
         return newM;
     }
-    function VBModule(modulePrefix) {
+    function VBModule(modulePrefix, description) {
         return function (constructor) {
             //console.log(modulePrefix);
             //console.log(constructor);
             var m = GetVBModuleForClass(constructor.name); // cast to any to shut typescript up
             m.Prefix = modulePrefix;
+            if (isAssigned(description)) {
+                m.Description = description;
+            }
             //console.log(JSON.stringify(LoadedModules));
         };
     }
@@ -119,7 +124,7 @@ var VirtualBard;
             m.PostDelegates.push(postDel);
         };
     }
-    function VBModuleCommand(commandText) {
+    function VBModuleCommand(commandText, description) {
         return function (target, propertyKey, descriptor) {
             //console.log(commandText);
             //console.log(target);
@@ -128,6 +133,9 @@ var VirtualBard;
             var cmd = new VBModuleCommandInfo();
             cmd.Prefix = commandText;
             cmd.Delegate = descriptor.value;
+            if (isAssigned(description)) {
+                cmd.Description = description;
+            }
             m.Commands.push(cmd);
             //console.log(JSON.stringify(LoadedModules));
         };
@@ -389,8 +397,8 @@ var VirtualBard;
             this.CurrentDuration = new Duration();
         }
         AdventureCalendar.prototype.LogChange = function () {
-            Events.LogEvent("Time changed: " + this.GetDisplayText());
-            Events.RaiseAdventureStateChanged();
+            VirtualBard.Events.LogEvent("Time changed: " + this.GetDisplayText());
+            VirtualBard.Events.RaiseAdventureStateChanged();
         };
         AdventureCalendar.prototype.AddHours = function (hours) {
             this.CurrentDuration.Hour += hours;
@@ -478,8 +486,8 @@ var VirtualBard;
         }
         LocationManager.prototype.LogMove = function () {
             // add function to write nicely to the adventure log
-            Events.LogEvent("Location Changed: " + this.GetLocationPath());
-            Events.RaiseAdventureStateChanged();
+            VirtualBard.Events.LogEvent("Location Changed: " + this.GetLocationPath());
+            VirtualBard.Events.RaiseAdventureStateChanged();
         };
         /** Returns a simple path of the current location. Useful for informative purposes */
         LocationManager.prototype.GetLocationPath = function () {
@@ -696,6 +704,10 @@ var VirtualBard;
         };
         return HTMLTextEditor;
     }());
+    /** Newline constant */
+    VirtualBard.c_NL = "<br>";
+    /** Tab spacing */
+    VirtualBard.c_TAB = "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;";
     function DefaultSettings() {
         return {
             sexTypes: expand({
@@ -716,6 +728,7 @@ var VirtualBard;
                 "wizard,wiz": "Wizard",
                 "warlock,lock": "Warlock"
             }),
+            VirtualBardMessageSourceName: "Virtual Bard",
             CharacterResolutionOrder: //{mode : CharacterMode, canCreate : boolean}[] = 
             [{ mode: CharacterMode.Sheet, canCreate: false } // attempt to find a sheet first
                 ,
@@ -750,6 +763,10 @@ var VirtualBard;
         };
     }
     ;
+    function matchRuleShort(str, rule) {
+        return new RegExp("^" + rule.split("*").join(".*") + "$").test(str);
+    }
+    VirtualBard.matchRuleShort = matchRuleShort;
     VirtualBard.settings = DefaultSettings();
     /**
      *  returns a object that describes the results. The returned object supports additional searcing and text modification functions.
@@ -856,8 +873,8 @@ var VirtualBard;
             return result;
         }
         var found = false;
-        for (var i_1 = 0; i_1 < LoadedModules.length; i_1++) {
-            var m = LoadedModules[i_1];
+        for (var i_1 = 0; i_1 < VirtualBard.LoadedModules.length; i_1++) {
+            var m = VirtualBard.LoadedModules[i_1];
             if (msg.content.indexOf("!" + m.Prefix) == 0) {
                 result.Module = m;
                 found = true;
@@ -903,6 +920,7 @@ var VirtualBard;
                 }
                 else {
                     cmd.Type = part;
+                    addedSomething = true;
                 }
             }
             else {
@@ -919,10 +937,10 @@ var VirtualBard;
     function processAction(user, data) {
     }
     function sendMessage(user, message) {
-        sendChat("Virtual Bard", "/w " + user + " " + message);
+        sendChat(VirtualBard.settings.VirtualBardMessageSourceName, "/w " + user + " " + message);
     }
     function broadcastMessage(message) {
-        sendChat("Virtual Bard", message);
+        sendChat(VirtualBard.settings.VirtualBardMessageSourceName, message);
     }
     function getUserContext(msg) {
         var ctx = contextStore[msg.playerid];
@@ -980,24 +998,61 @@ var VirtualBard;
         //     postAction(context);
         // }
         if (errors.length > 0) {
-            throw "Following errors were encountered:\r\n" + errors.join("\r\n");
+            throw "Following errors were encountered:" + VirtualBard.c_NL + errors.join(VirtualBard.c_NL);
         }
         //}
     }
-    var SystemFunctions = (function () {
+    var SystemFunctions = SystemFunctions_1 = (function () {
         function SystemFunctions() {
         }
         SystemFunctions.prototype.enableDebug = function (ctx, cmd) {
             debugMode = true;
             Debug("Debug Mode enabled");
         };
+        SystemFunctions.prototype.disableDebug = function (ctx, cmd) {
+            debugMode = false;
+            log("Debug Mode disabled");
+        };
+        SystemFunctions.prototype.listModules = function (ctx, cmd) {
+            if (cmd.Params.length > 0) {
+                for (var i = 0; i < VirtualBard.LoadedModules.length; i++) {
+                    var m = VirtualBard.LoadedModules[i];
+                    if (cmd.Params[0].indexOf("!" + m.Prefix) == 0) {
+                        SystemFunctions_1.listCommands(m, ctx);
+                        return;
+                    }
+                }
+                ctx.SendChat("Module \"" + cmd.Params[0] + "\" not found");
+            }
+            var result = "Available VirtualBard Command Modules:" + VirtualBard.c_NL;
+            for (var i = 0; i < VirtualBard.LoadedModules.length; i++) {
+                var m = VirtualBard.LoadedModules[i];
+                result += "$ !" + m.Prefix + " = " + m.Name + " " + VirtualBard.c_NL + VirtualBard.c_TAB + "   " + m.Description + VirtualBard.c_NL;
+            }
+            result += 'use "!vb -help [!module]" to list that modules commands';
+            ctx.SendChat(result);
+        };
+        SystemFunctions.listCommands = function (moduleInfo, ctx) {
+            var result = "";
+            for (var i = 0; i < moduleInfo.Commands.length; i++) {
+                var c = moduleInfo.Commands[i];
+                result += "$ !" + moduleInfo.Prefix + " -" + c.Prefix + " " + VirtualBard.c_NL + VirtualBard.c_TAB + "  " + c.Description + " " + VirtualBard.c_NL;
+            }
+            ctx.SendChat(result);
+        };
         return SystemFunctions;
     }());
     __decorate([
         VBModuleCommand("enableDebug")
     ], SystemFunctions.prototype, "enableDebug", null);
-    SystemFunctions = __decorate([
-        VBModule("vb")
+    __decorate([
+        VBModuleCommand("disableDebug")
+    ], SystemFunctions.prototype, "disableDebug", null);
+    __decorate([
+        VBModuleCommand("help")
+    ], SystemFunctions.prototype, "listModules", null);
+    SystemFunctions = SystemFunctions_1 = __decorate([
+        VBModule("vb", "Virtual bard system functions. For maintenence and configuration functions")
     ], SystemFunctions);
     var CharacterFunctions = CharacterFunctions_1 = (function () {
         function CharacterFunctions() {
@@ -1033,6 +1088,28 @@ var VirtualBard;
             }
             else {
                 ctx.SendChat("No character exists with name: " + charName);
+            }
+        };
+        CharacterFunctions.prototype.findAction = function (ctx, cmd) {
+            var charNames = p_sysFunctions.listCharacters();
+            log(charNames);
+            var matchRule = cmd.Params.join(" ").toLowerCase().trim();
+            var matches = [];
+            for (var i = 0; i < charNames.length; i++) {
+                var charName = charNames[i];
+                if (matchRuleShort(charName.toLowerCase().trim(), matchRule)) {
+                    matches.push(charName);
+                }
+            }
+            if (matches.length == 0) {
+                ctx.SendChat("No characters found");
+            }
+            else {
+                var textToDisplay_1 = "Found " + matches.length + " characters " + VirtualBard.c_NL;
+                matches.forEach(function (element) {
+                    textToDisplay_1 += "[" + element + "](!c -who " + element + ") " + VirtualBard.c_NL;
+                });
+                ctx.SendChat(textToDisplay_1);
             }
         };
         CharacterFunctions.prototype.metAction = function (ctx, cmd) {
@@ -1090,8 +1167,11 @@ var VirtualBard;
         VBModulePostAction()
     ], CharacterFunctions.prototype, "logAction", null);
     __decorate([
-        VBModuleCommand("who")
+        VBModuleCommand("who", "Switches context to the specified character")
     ], CharacterFunctions.prototype, "whoAction", null);
+    __decorate([
+        VBModuleCommand("find", "Searches for a PC or NPC by name using wildcard syntax '*'")
+    ], CharacterFunctions.prototype, "findAction", null);
     __decorate([
         VBModuleCommand("met")
     ], CharacterFunctions.prototype, "metAction", null);
@@ -1105,7 +1185,7 @@ var VirtualBard;
         VBModuleCommand("r")
     ], CharacterFunctions.prototype, "raceAction", null);
     CharacterFunctions = CharacterFunctions_1 = __decorate([
-        VBModule("c")
+        VBModule("c", "NPC and PC related functions. Covers encounters and information logging")
     ], CharacterFunctions);
     var p_journalFunctions = {
         currentSentence: "",
@@ -1188,6 +1268,32 @@ var VirtualBard;
                 return shts[0];
             }
         },
+        /** Searches through character listings to find a characters. Uses the Resolution order to find distinct results */
+        listCharacters: function () {
+            var result = [];
+            var modeOrder = [];
+            for (var i = 0; i < VirtualBard.settings.CharacterResolutionOrder.length; i++) {
+                var m = VirtualBard.settings.CharacterResolutionOrder[i];
+                if (modeOrder.indexOf(m.mode) == -1) {
+                    modeOrder.push(m.mode);
+                }
+            }
+            for (var i = 0; i < modeOrder.length; i++) {
+                var mode = modeOrder[i];
+                switch (mode) {
+                    case CharacterMode.Sheet:
+                        var cSheets = findObjs({ _type: "character" });
+                        for (var i = 0; i < cSheets.length; i++) {
+                            var element = cSheets[i];
+                            var currName = element.get("name");
+                            if (isDefined(currName) && (result.indexOf(currName) == -1)) {
+                                result.push(currName);
+                            }
+                        }
+                }
+            }
+            return result;
+        },
         /**
          * Resolves the Character info reference. This will return different things based on the mode of operation
          */
@@ -1256,19 +1362,21 @@ var VirtualBard;
     function Initialize() {
         Setup(function () {
             on("chat:message", function (msg) {
-                Debug(msg);
-                //try
-                //{
-                if (msg.content.indexOf("!vb DUMP") == 0) {
-                    DumpEnvironment();
-                }
-                else {
-                    var r = parseMessage(msg);
-                    if (r.IsValid) {
-                        var ctx = getUserContext(msg);
-                        // we have a command and a context to work with. lets start processing.
-                        process(ctx, r);
-                        SaveState();
+                if (msg.who != VirtualBard.settings.VirtualBardMessageSourceName) {
+                    Debug(msg);
+                    //try
+                    //{
+                    if (msg.content.indexOf("!vb DUMP") == 0) {
+                        DumpEnvironment();
+                    }
+                    else {
+                        var r = parseMessage(msg);
+                        if (r.IsValid) {
+                            var ctx = getUserContext(msg);
+                            // we have a command and a context to work with. lets start processing.
+                            process(ctx, r);
+                            SaveState();
+                        }
                     }
                 }
                 //}
@@ -1308,7 +1416,7 @@ var VirtualBard;
         });
     }
     VirtualBard.SmartStringify = SmartStringify;
-    var CharacterFunctions_1;
+    var SystemFunctions_1, CharacterFunctions_1;
 })(VirtualBard || (VirtualBard = {}));
 /// <reference path="..\src\VirtualBard.ts" />"
 var VirtualBard;

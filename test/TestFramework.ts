@@ -107,6 +107,48 @@ module Assert
             }
         }
     }
+    export function IsTrue(descript: string, actual: boolean) : void
+    {
+        PushAssertionNameScope(descript);
+        try
+        {
+
+        
+            if (actual == true)
+            {
+                PrintPass();
+            }
+            else
+            {
+                ThrowFail("Expected TRUE actual " + actual);
+            }
+        }
+        finally
+        {
+            scopes.pop();
+        }
+    }
+    export function IsFalse(descript: string, actual: boolean) : void
+    {
+        PushAssertionNameScope(descript);
+        try
+        {
+
+        
+            if (actual == false)
+            {
+                PrintPass();
+            }
+            else
+            {
+                ThrowFail("Expected FALSE actual " + actual);
+            }
+        }
+        finally
+        {
+            scopes.pop();
+        }
+    }
     export function AreEqual(descript: string, expected: any, actual: any) : void
     {
         PushAssertionNameScope(descript);
