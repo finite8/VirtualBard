@@ -156,7 +156,11 @@ namespace VirtualBard {
         TestHTMLEdit() {
             Assert.AreEqual("HTMLEdit Basic test", `balls balls and balls and stuff<test id="1" others="5">[Prepended]someother <innerTest>[SetText]</innerTest>[Appended]</test>`
         , r.appendText("[Appended]").prependText("[Prepended]").findTag("innerTest").setText("[SetText]").getText());
+            let test = findTag(myString, "test");
+            Assert.AreEqual("HTMLEdit Tag Remove", "balls balls and balls and stuffsomeother <innerTest></innerTest>"
+                , test.removeTag().getText());
         }
+        
         TestWildcard() {
             Assert.IsTrue("Basic Wildcard", matchRuleShort("SomeString", "*meStr*"));
             Assert.IsTrue("arry in Larry Barry", matchRuleShort("Larry McBarry","*arry*"));
@@ -252,4 +256,6 @@ namespace VirtualBard {
     
     RaiseApiMessage("!c -find *arry*");
     
+
+    Assert.PrintSummary();
 }

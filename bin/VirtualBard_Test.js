@@ -632,6 +632,7 @@ var VirtualBard;
                         }
                     }
                 }
+                refObj.Data.SetProperty("Name", this.CharSheet.get("name"));
             });
         };
         CharacterSheetReference.prototype.SaveData = function (data) {
@@ -692,6 +693,17 @@ var VirtualBard;
         HTMLTextEditor.prototype.appendTag = function (tagToAppend) {
             var edt = this.appendText("<" + tagToAppend + "></" + tagToAppend + ">");
             return edt.findTag(tagToAppend);
+        };
+        /** Removes the HTML tags. */
+        HTMLTextEditor.prototype.removeTag = function () {
+            var txtToModify = this.originalText.value;
+            var content = this.originalText.value.substring(this.innerStartIndex, this.innerEndIndex);
+            this.originalText.value = txtToModify.slice(0, this.startIndex) + content + txtToModify.slice(this.endIndex);
+            this.tag = null;
+            this.innerEndIndex = null;
+            this.endIndex = null;
+            this.text = content;
+            return this;
         };
         return HTMLTextEditor;
     }());
@@ -1274,11 +1286,13 @@ var VirtualBard;
                 switch (mode) {
                     case CharacterMode.Sheet:
                         var cSheets = VirtualBard.findObjs({ _type: "character" });
-                        cSheets.forEach(function (element) {
-                            if (result.indexOf(element.name) === -1) {
-                                result.push(element.name);
+                        for (var i = 0; i < cSheets.length; i++) {
+                            var element = cSheets[i];
+                            var currName = element.get("name");
+                            if (isDefined(currName) && (result.indexOf(currName) == -1)) {
+                                result.push(currName);
                             }
-                        });
+                        }
                 }
             }
             return result;
@@ -1342,7 +1356,7 @@ var VirtualBard;
                 throw attribs.length + " attributes discovered with name " + attribName;
             }
             else {
-                attribs[0].current = newValue;
+                attribs[0].set("current", newValue);
             }
         }
     };
@@ -1422,6 +1436,16 @@ var Assert;
     var passes = 0;
     var failures = 0;
     var scopes = [];
+    function PrintSummary() {
+        console.log(passes + " Tests Passed");
+        if (failures > 0) {
+            console.log(failures + " Tests FAILED!");
+        }
+        else {
+            console.log("No Failures");
+        }
+    }
+    Assert.PrintSummary = PrintSummary;
     var ScopeEntry = (function () {
         function ScopeEntry(typeToUse, nameToUse) {
             this.type = typeToUse;
@@ -1703,6 +1727,8 @@ var VirtualBard;
         }
         CommonFunctionTests.prototype.TestHTMLEdit = function () {
             Assert.AreEqual("HTMLEdit Basic test", "balls balls and balls and stuff<test id=\"1\" others=\"5\">[Prepended]someother <innerTest>[SetText]</innerTest>[Appended]</test>", r.appendText("[Appended]").prependText("[Prepended]").findTag("innerTest").setText("[SetText]").getText());
+            var test = VirtualBard.findTag(myString, "test");
+            Assert.AreEqual("HTMLEdit Tag Remove", "balls balls and balls and stuffsomeother <innerTest></innerTest>", test.removeTag().getText());
         };
         CommonFunctionTests.prototype.TestWildcard = function () {
             Assert.IsTrue("Basic Wildcard", VirtualBard.matchRuleShort("SomeString", "*meStr*"));
@@ -1793,4 +1819,5 @@ var VirtualBard;
     RaiseApiMessage("!vb -help");
     RaiseApiMessage("!vb -help !c");
     RaiseApiMessage("!c -find *arry*");
+    Assert.PrintSummary();
 })(VirtualBard || (VirtualBard = {}));

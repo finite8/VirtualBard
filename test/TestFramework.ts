@@ -13,6 +13,18 @@ module Assert
     let passes : number = 0;
     let failures : number = 0;
     let scopes : ScopeEntry[] = [];
+    export function PrintSummary()
+    {
+        console.log(`${passes} Tests Passed`);
+        if (failures > 0)
+        {
+            console.log(`${failures} Tests FAILED!`);
+        }
+        else
+        {
+            console.log("No Failures");
+        }
+    }
     class ScopeEntry
     {
         constructor(typeToUse : ScopeType, nameToUse: string)

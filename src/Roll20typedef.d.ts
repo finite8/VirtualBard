@@ -1,31 +1,31 @@
 interface Roll20Object {
-    /** Readonly. Cannot be assiged at object instantiation. Use _id when querying */
-    id?: string;
-    /** Use THIS when querying */
-    _id?: string;
-    /** Readonly. Cannot be assiged at object instantiation. Use _type when querying */
-    type?: string;
-    /** Use THIS when querying */
+    /** Readonly. This is a shim for get("_id")*/
+    id: string;
+    /** Retrieves a field value using a callback. Use this for Bio, notes and GMNotes field */
+    get(field : string, callback : (value: any) => void ) : void;
+    /** Retrieves a field value (Name, Type, etc) */
+    get(field: string) : any;
+    /** Sets a field value (cannot change readonly fields such as id and type) */
+    set(field : string, value: any) : void;
+}
+interface Roll20QueryObject {
+    /** the type of object. This is only needed when querying. If creating an object, this is supplied by the first parameter */
     _type?: string;
-    /** Retrieves a field value. */
-    get?(field : string, callback : (value: any) => void );
-    set?(field : string, value: any);
 }
-
-interface Character extends Roll20Object {
+interface Character extends Roll20QueryObject {
     /** the name of the character as it will appear in the "Name" field */
-    name : string;
+    name? : string;
     /** Comma delimited list of players that this character sheet can be viewed by. Use the string "all" to make it available for all */
-    inplayerjournals : string;
-    controlledby : string;
+    inplayerjournals? : string;
+    controlledby? : string;
 }
-interface Attribute extends Roll20Object {
-    name: string;
+interface Attribute extends Roll20QueryObject {
+    name?: string;
     current?: any; 
     characterid?:string;
     _characterid?:string;
 }
-interface Handout extends Roll20Object {
+interface Handout extends Roll20QueryObject {
     /**URL to an image used for the handout. See the note about avatar and imgsrc restrictions below. */
     avatar?: string;	
     /** The name of the handout. Default: "Mysterious Note" */
@@ -57,7 +57,7 @@ declare function sendChat(sendas: string, message: string, callback?: MessageCal
  * @param {Roll20Object} attributes - The properties the new Roll20 object will be created with.
  *
  */
-declare function createObj<T extends Roll20Object>(type: string, attributes: T) : T;
+declare function createObj<T extends Roll20QueryObject>(type: string, attributes: T) : Roll20Object;
 /**
  * Prints a message to the Roll20 Script console output.
  * @param {any} message - The data you want printed to the console. This will be formatted to string as best as possible (JSON data will be formatted appropriately) 
@@ -67,7 +67,7 @@ declare function log(message: any) : void;
  * Pass this function a list of attributes, and it will return all objects that match as an array. Note that this operates on all objects of all types across all pages -- so you probably want to include at least a filter for _type and _pageid if you're working with tabletop objects.
  * @param {T} attributes - The properties being queried
  */
-declare function findObjs<T extends Roll20Object>(attributes: T) : T[];
+declare function findObjs<T extends Roll20QueryObject>(attributes: T) : Roll20Object[];
 /**
  * Non Typesafe declaration. Pass this function a list of attributes, and it will return all objects that match as an array. Note that this operates on all objects of all types across all pages -- so you probably want to include at least a filter for _type and _pageid if you're working with tabletop objects.
  * @param {any} attributes - The properties being queried
