@@ -36,8 +36,8 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 */
 var VirtualBard;
 (function (VirtualBard) {
-    VirtualBard.revision = "$Id: e68f4b2a762299f0b4bec642ccae5434ee14c791 $";
-    var debugMode = false;
+    VirtualBard.revision = "$Id$";
+    var debugMode = true;
     function Debug(text) {
         if (debugMode == true) {
             var stack = (new Error()).stack;
@@ -629,6 +629,7 @@ var VirtualBard;
         }
         CharacterSheetReference.prototype.LoadData = function () {
             var refObj = this;
+            refObj.Data.SetProperty("Name", this.CharSheet.get("name"));
             this.CharSheet.get("gmnotes", function (t) {
                 var tag = findTag(t, "CharData");
                 if (tag != null) {
@@ -641,10 +642,13 @@ var VirtualBard;
                         }
                     }
                 }
+                refObj.Data.SetProperty("Name", refObj.CharSheet.get("name"));
             });
         };
         CharacterSheetReference.prototype.SaveData = function (data) {
             var refObj = this;
+            log("Saving");
+            log(this);
             this.CharSheet.get("gmnotes", function (t) {
                 var htmlEdt = findTag(t, "CharData").setText(JSON.stringify(refObj.Data));
                 setTimeout(function () {
@@ -701,6 +705,17 @@ var VirtualBard;
         HTMLTextEditor.prototype.appendTag = function (tagToAppend) {
             var edt = this.appendText("<" + tagToAppend + "></" + tagToAppend + ">");
             return edt.findTag(tagToAppend);
+        };
+        /** Removes the HTML tags. */
+        HTMLTextEditor.prototype.removeTag = function () {
+            var txtToModify = this.originalText.value;
+            var content = this.originalText.value.substring(this.innerStartIndex, this.innerEndIndex);
+            this.originalText.value = txtToModify.slice(0, this.startIndex) + content + txtToModify.slice(this.endIndex);
+            this.tag = null;
+            this.innerEndIndex = null;
+            this.endIndex = null;
+            this.text = content;
+            return this;
         };
         return HTMLTextEditor;
     }());
@@ -982,6 +997,7 @@ var VirtualBard;
                 cmdInfo.Delegate(context, cmd);
             }
             catch (er) {
+                log(JSON.stringify(er));
                 if (typeof er == "Error") {
                     var err = er;
                     errors.push("cmd=(" + cmd.Type + " " + cmd.Params.join(" ") + "), err=" + err.message + ", stack=" + err.stack);
@@ -1188,10 +1204,86 @@ var VirtualBard;
         VBModule("c", "NPC and PC related functions. Covers encounters and information logging")
     ], CharacterFunctions);
     var p_journalFunctions = {
+        journalIsBusy: false,
+        wait: function () {
+            var timeStarted = new Date();
+            while (p_journalFunctions.journalIsBusy == true) {
+                var timeSpent = (new Date().getTime()) - timeStarted.getTime();
+                if (timeSpent > 2000) {
+                    break; // break out after 2 seconds. More than enough time to wait.
+                }
+            }
+        },
+        /** Sets the text for the users current journal entry
+         * @param ctx {UserContext} - The user context owning this entry
+         * @param text {string} - initial text to insert in the new line.
+        */
+        setEntry: function (ctx, text) {
+            // we only ever allow one entry in the journal per user. This keeps it simple. Retro edits are not possible once we have
+            // moved beyond this point. This process allows the following:
+            // - Edits in progress are still shown in any handouts.
+            // - Edits can now happen over several commands. No need to do it all in one line.
+            var journal = p_journalFunctions.getJournalHandout();
+            log(journal);
+            journal.get("notes", function (notes) {
+                p_journalFunctions.wait();
+                try {
+                    p_journalFunctions.journalIsBusy = true;
+                    var r_1 = p_journalFunctions.getJournalTextEditor(notes);
+                    var currTag = r_1.findTag("font", { id: "\"" + ctx.PlayerId + "\"" });
+                    if (currTag == null) {
+                        // if the tag doesn't exist, we need to start a new one.
+                        var newTag = "<font id=\"" + ctx.PlayerId + "\" style=\"color:red\"></font>";
+                        switch (VirtualBard.settings.AdventureLogConfiguration.LogDirection) {
+                            case LogDirections.Up:
+                                r_1.prependText(newTag);
+                                break;
+                            case LogDirections.Down:
+                                r_1.appendText(newTag);
+                                break;
+                        }
+                        currTag = r_1.findTag("font", { id: "\"" + ctx.PlayerId + "\"" });
+                    }
+                    currTag.setText(text);
+                    setTimeout(function () { journal.set("notes", r_1.getText()); }, 5);
+                }
+                finally {
+                    p_journalFunctions.journalIsBusy = false;
+                }
+            });
+        },
+        /** ends an entry in the journal. If an entry is not available, this does nothing */
+        endEntry: function (ctx) {
+            p_journalFunctions.wait();
+            try {
+                p_journalFunctions.journalIsBusy = true;
+                var journal_1 = p_journalFunctions.getJournalHandout();
+                journal_1.get("notes", function (notes) {
+                    var r = p_journalFunctions.getJournalTextEditor(notes);
+                    var currTag = r.findTag("font", { id: "\"" + ctx.PlayerId + "\"" });
+                    if (currTag != null) {
+                        currTag.removeTag();
+                        setTimeout(function () { journal_1.set("notes", r.getText()); }, 5);
+                    }
+                });
+            }
+            finally {
+                p_journalFunctions.journalIsBusy = false;
+            }
+        },
+        getJournalTextEditor: function (notes) {
+            var r = findTag(notes, "AdventureLog");
+            if (r == null) {
+                // the tag doesn't exist. We need to add it.
+                notes += "<AdventureLog></AdventureLog>";
+                r = findTag(notes, "AdventureLog");
+            }
+            return r;
+        },
         currentSentence: "",
         appendJournalText: function (text) {
-            this.currentSentence = this.currentSentence + text;
-            var j = this.getJournalHandout();
+            p_journalFunctions.currentSentence = p_journalFunctions.currentSentence + text;
+            var j = p_journalFunctions.getJournalHandout();
             j.get("notes", function (n) {
                 Debug("Existing Notes:" + n);
                 setTimeout(function () {
@@ -1327,7 +1419,7 @@ var VirtualBard;
                         ret.Char = new CharacterSheetReference(char);
                         return ret;
                     default:
-                        log("CharacterSheetMode " + m + " is not yet implemented");
+                        log("CharacterSheetMode " + JSON.stringify(m) + " is not yet implemented");
                 }
             }
             throw "VirtualBard was unable to resolve the character " + charName + ". Try adding more ResolutionOptions or allowing VirtualBard to create sheets or handouts.";
@@ -1353,7 +1445,7 @@ var VirtualBard;
                 throw attribs.length + " attributes discovered with name " + attribName;
             }
             else {
-                attribs[0].current = newValue;
+                attribs[0].set("current", newValue);
             }
         }
     };
@@ -1387,6 +1479,7 @@ var VirtualBard;
                 //}
             });
             VirtualBard.isInitialized = true;
+            log("VirtualBard Ready");
         });
     }
     VirtualBard.Initialize = Initialize;

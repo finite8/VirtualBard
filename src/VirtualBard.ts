@@ -20,7 +20,7 @@
 
 namespace VirtualBard {
     export let revision : string = "$Id$";
-    let debugMode = false;
+    let debugMode = true;
     export function Debug(text: any) : void
     {
         if (debugMode == true)
@@ -725,6 +725,7 @@ namespace VirtualBard {
         CharSheet: Roll20Object;
         protected LoadData(): void {
             let refObj = this;
+            refObj.Data.SetProperty("Name", this.CharSheet.get("name"));
             this.CharSheet.get("gmnotes", function (t: string) {
                 let tag = findTag(t, "CharData");
                 if (tag != null) {
@@ -738,11 +739,13 @@ namespace VirtualBard {
                     }
 
                 }
-                refObj.Data.SetProperty("Name", this.CharSheet.get("name"));
+                refObj.Data.SetProperty("Name", refObj.CharSheet.get("name"));
             });
         }
         protected SaveData(data: CharacterData): void {
             let refObj = this;
+            log("Saving");
+            log(this);
             this.CharSheet.get("gmnotes", function (t: string) {
                 let htmlEdt = findTag(t, "CharData").setText(JSON.stringify(refObj.Data));
                 setTimeout(function () {
@@ -1126,6 +1129,7 @@ namespace VirtualBard {
                     cmdInfo.Delegate(context, cmd);
                 }
                 catch (er) {
+                    log(JSON.stringify(er));
                     if (typeof er == "Error")
                     {
                         let err: Error = er;
@@ -1244,6 +1248,7 @@ namespace VirtualBard {
             let r = p_sysFunctions.getCharacterInfo(charName);
             if (isDefined(r)) {
                 // we have the character
+
                 ctx.CurrentChar = r.Char;
                 ctx.SendChat("Character context set to: " + r.Char.GetAttribute<string>("Name"));
             }
@@ -1365,6 +1370,7 @@ namespace VirtualBard {
             // - Edits in progress are still shown in any handouts.
             // - Edits can now happen over several commands. No need to do it all in one line.
             let journal = p_journalFunctions.getJournalHandout();
+            log(journal);
             journal.get("notes", function (notes) {
                 p_journalFunctions.wait();
                 try
@@ -1432,8 +1438,8 @@ namespace VirtualBard {
         },
         currentSentence: "",
         appendJournalText: function (text) {
-            this.currentSentence = this.currentSentence + text;
-            var j = this.getJournalHandout();
+            p_journalFunctions.currentSentence = p_journalFunctions.currentSentence + text;
+            var j = p_journalFunctions.getJournalHandout();
             j.get("notes", function (n) {
                 Debug("Existing Notes:" + n);
                 setTimeout(function () {
@@ -1477,6 +1483,35 @@ namespace VirtualBard {
     };
 
     var p_sysFunctions = {
+        getAsyncHolder : function(id: string) {
+            var asyncDict;
+            if (!isAssigned(state.VirtualBardState.Async))
+            {
+                asyncDict = {};
+                state.VirtualBardState.Async = asyncDict;
+            }
+            else
+            {
+                asyncDict = state.VirtualBardState.Async;
+            }
+            var asyncHolder = asyncDict[id];
+            if (!isAssigned(asyncHolder))
+            {
+                asyncHolder = {};
+                asyncDict[id] = asyncHolder;
+            }
+            return asyncHolder;
+        },
+        /** Returns a Roll20 objects value synchronously. If it has not been prepared, this will raise an error.  */
+        getAsynchronousValue: function (refObject: Roll20Object, attribName: string) : any
+        {
+            var holder = p_sysFunctions.getAsyncHolder
+        },
+        /** Prepares a asynchronous value for synchronous retrieval. Puts the value into the gamestate. */
+        prepareAsyncValue : function(refObject: Roll20Object, attribName: string) : void {
+
+        },
+        
         getSafeCharacterName: function (charName) {
             return "_vb_c:" + charName;
         },
@@ -1587,7 +1622,7 @@ namespace VirtualBard {
 
                     default:
 
-                        log("CharacterSheetMode " + m + " is not yet implemented");
+                        log("CharacterSheetMode " + JSON.stringify(m) + " is not yet implemented");
                 }
             }
             throw "VirtualBard was unable to resolve the character " + charName + ". Try adding more ResolutionOptions or allowing VirtualBard to create sheets or handouts."
@@ -1656,6 +1691,7 @@ namespace VirtualBard {
                 //}
             });
             isInitialized = true;
+            log("VirtualBard Ready");
         });
     };
     export let isInitialized : boolean = false;
