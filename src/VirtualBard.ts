@@ -747,10 +747,16 @@ namespace VirtualBard {
             log("Saving");
             log(this);
             this.CharSheet.get("gmnotes", function (t: string) {
-                let htmlEdt = findTag(t, "CharData").setText(JSON.stringify(refObj.Data));
+                let htmlEdt = findTag(t, "CharData");
+                if (htmlEdt == null)
+                {
+                    // we need to append our new entry.
+                    htmlEdt = htmlEdt.appendTag("CharData");
+                }
+                htmlEdt.setText(JSON.stringify(refObj.Data));
                 setTimeout(function () {
                     refObj.CharSheet.set("gmnotes", htmlEdt.getText());
-                }, 100);
+                }, 1);
             });
         }
         protected AssignAttributeValue(attribName: string, attribValue: any): any {
@@ -1347,83 +1353,61 @@ namespace VirtualBard {
     
 
     var p_journalFunctions = {
-        journalIsBusy : false,
-        wait : function() {
-            let timeStarted = new Date();
-            while (p_journalFunctions.journalIsBusy == true)
-            {
-                let timeSpent = (new Date().getTime()) - timeStarted.getTime();
         
-                if (timeSpent > 2000)
-                {
-                    break; // break out after 2 seconds. More than enough time to wait.
-                }
-            }
-        },
         /** Sets the text for the users current journal entry
          * @param ctx {UserContext} - The user context owning this entry
          * @param text {string} - initial text to insert in the new line.
         */
-        setEntry : function (ctx : UserContext, text: string) : void {
+        setEntry : function (ctx : UserContext, text: string, startNew : boolean = false) : void {
             // we only ever allow one entry in the journal per user. This keeps it simple. Retro edits are not possible once we have
             // moved beyond this point. This process allows the following:
             // - Edits in progress are still shown in any handouts.
             // - Edits can now happen over several commands. No need to do it all in one line.
-            let journal = p_journalFunctions.getJournalHandout();
-            log(journal);
-            journal.get("notes", function (notes) {
-                p_journalFunctions.wait();
-                try
+                let journal = p_journalFunctions.getJournalHandout();
+                log(journal);
+                journal.get("notes", function (notes) {
+                    
+                    
+                let r = p_journalFunctions.getJournalTextEditor(notes);
+                let currTag = r.findTag("font", {id: `"${ctx.PlayerId}"`});
+                if (currTag != null && startNew)
+                {   // currTag exists and startNew tag selected. We need to end the current tag and start a new one
+                    currTag.removeTag();
+                }
+                if (currTag == null)
                 {
-                    p_journalFunctions.journalIsBusy = true;
-                
-                    let r = p_journalFunctions.getJournalTextEditor(notes);
-                    let currTag = r.findTag("font", {id: `"${ctx.PlayerId}"`});
-                    if (currTag == null)
+                    // if the tag doesn't exist, we need to start a new one.
+                    let newTag = `<font id="${ctx.PlayerId}" style="color:red"></font>`;
+                    switch (settings.AdventureLogConfiguration.LogDirection)
                     {
-                        // if the tag doesn't exist, we need to start a new one.
-                        let newTag = `<font id="${ctx.PlayerId}" style="color:red"></font>`;
-                        switch (settings.AdventureLogConfiguration.LogDirection)
-                        {
-                            case LogDirections.Up:
-                                r.prependText(newTag);
-                                break;
-                            case LogDirections.Down:
-                                r.appendText(newTag);
-                                break;
-                        }
-                        currTag = r.findTag("font", {id: `"${ctx.PlayerId}"`});
+                        case LogDirections.Up:
+                            r.prependText(newTag);
+                            break;
+                        case LogDirections.Down:
+                            r.appendText(newTag);
+                            break;
                     }
-                    currTag.setText(text);
-                    setTimeout(function () { journal.set("notes", r.getText()); }, 5);
+                    currTag = r.findTag("font", {id: `"${ctx.PlayerId}"`});
                 }
-                finally
-                {
-                    p_journalFunctions.journalIsBusy = false;
-                }
+                currTag.setText(text);
+                setTimeout(function () { journal.set("notes", r.getText()); }, 5);
+                
             });
         },
         /** ends an entry in the journal. If an entry is not available, this does nothing */
         endEntry : function(ctx : UserContext) : void {
-             p_journalFunctions.wait();
-            try
-            {
-                p_journalFunctions.journalIsBusy = true;
-                let journal = p_journalFunctions.getJournalHandout();
-                journal.get("notes", function (notes) {
-                    let r = p_journalFunctions.getJournalTextEditor(notes);
-                    let currTag = r.findTag("font", {id: `"${ctx.PlayerId}"`});
-                    if (currTag != null)
-                    {
-                        currTag.removeTag();
-                        setTimeout(function () { journal.set("notes", r.getText()); }, 5);
-                    }
-                });
-            }
-            finally
-            {
-                p_journalFunctions.journalIsBusy = false;
-            }
+             
+            let journal = p_journalFunctions.getJournalHandout();
+            journal.get("notes", function (notes) {
+                let r = p_journalFunctions.getJournalTextEditor(notes);
+                let currTag = r.findTag("font", {id: `"${ctx.PlayerId}"`});
+                if (currTag != null)
+                {
+                    currTag.removeTag();
+                    setTimeout(function () { journal.set("notes", r.getText()); }, 5);
+                }
+            });
+            
         },
         getJournalTextEditor : function (notes: string) : HTMLTextEditor
         {
@@ -1437,7 +1421,7 @@ namespace VirtualBard {
             return r;
         },
         currentSentence: "",
-        appendJournalText: function (text) {
+        appendJournalText: function (text : string) : void {
             p_journalFunctions.currentSentence = p_journalFunctions.currentSentence + text;
             var j = p_journalFunctions.getJournalHandout();
             j.get("notes", function (n) {
@@ -1462,8 +1446,6 @@ namespace VirtualBard {
                 this.currentSentence = "";
             }
         },
-
-
         getJournalHandout: function () : Roll20Object {
             if (typeof this.journalHandout !== 'undefined') {
                 return this.journalHandout;
@@ -1483,34 +1465,34 @@ namespace VirtualBard {
     };
 
     var p_sysFunctions = {
-        getAsyncHolder : function(id: string) {
-            var asyncDict;
-            if (!isAssigned(state.VirtualBardState.Async))
-            {
-                asyncDict = {};
-                state.VirtualBardState.Async = asyncDict;
-            }
-            else
-            {
-                asyncDict = state.VirtualBardState.Async;
-            }
-            var asyncHolder = asyncDict[id];
-            if (!isAssigned(asyncHolder))
-            {
-                asyncHolder = {};
-                asyncDict[id] = asyncHolder;
-            }
-            return asyncHolder;
-        },
-        /** Returns a Roll20 objects value synchronously. If it has not been prepared, this will raise an error.  */
-        getAsynchronousValue: function (refObject: Roll20Object, attribName: string) : any
-        {
-            var holder = p_sysFunctions.getAsyncHolder
-        },
-        /** Prepares a asynchronous value for synchronous retrieval. Puts the value into the gamestate. */
-        prepareAsyncValue : function(refObject: Roll20Object, attribName: string) : void {
+        // getAsyncHolder : function(id: string) {
+        //     var asyncDict;
+        //     if (!isAssigned(state.VirtualBardState.Async))
+        //     {
+        //         asyncDict = {};
+        //         state.VirtualBardState.Async = asyncDict;
+        //     }
+        //     else
+        //     {
+        //         asyncDict = state.VirtualBardState.Async;
+        //     }
+        //     var asyncHolder = asyncDict[id];
+        //     if (!isAssigned(asyncHolder))
+        //     {
+        //         asyncHolder = {};
+        //         asyncDict[id] = asyncHolder;
+        //     }
+        //     return asyncHolder;
+        // },
+        // /** Returns a Roll20 objects value synchronously. If it has not been prepared, this will raise an error.  */
+        // getAsynchronousValue: function (refObject: Roll20Object, attribName: string) : any
+        // {
+        //     var holder = p_sysFunctions.getAsyncHolder
+        // },
+        // /** Prepares a asynchronous value for synchronous retrieval. Puts the value into the gamestate. */
+        // prepareAsyncValue : function(refObject: Roll20Object, attribName: string) : void {
 
-        },
+        // },
         
         getSafeCharacterName: function (charName) {
             return "_vb_c:" + charName;

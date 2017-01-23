@@ -243,7 +243,6 @@ namespace VirtualBard {
         if (timeSpent > 2000)
         {
             // wait 2 seconds. More than enough time.
-            
             throw "Initialization failure. VirtualBard engine did not initialize";
         }
     }

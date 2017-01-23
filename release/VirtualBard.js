@@ -36,7 +36,7 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 */
 var VirtualBard;
 (function (VirtualBard) {
-    VirtualBard.revision = "$Id$";
+    VirtualBard.revision = "$Id: 22c7a48578cb1741228204012f0105ede057600b $";
     var debugMode = true;
     function Debug(text) {
         if (debugMode == true) {
@@ -650,10 +650,15 @@ var VirtualBard;
             log("Saving");
             log(this);
             this.CharSheet.get("gmnotes", function (t) {
-                var htmlEdt = findTag(t, "CharData").setText(JSON.stringify(refObj.Data));
+                var htmlEdt = findTag(t, "CharData");
+                if (htmlEdt == null) {
+                    // we need to append our new entry.
+                    htmlEdt = htmlEdt.appendTag("CharData");
+                }
+                htmlEdt.setText(JSON.stringify(refObj.Data));
                 setTimeout(function () {
                     refObj.CharSheet.set("gmnotes", htmlEdt.getText());
-                }, 100);
+                }, 1);
             });
         };
         CharacterSheetReference.prototype.AssignAttributeValue = function (attribName, attribValue) {
@@ -1321,6 +1326,33 @@ var VirtualBard;
         }
     };
     var p_sysFunctions = {
+        // getAsyncHolder : function(id: string) {
+        //     var asyncDict;
+        //     if (!isAssigned(state.VirtualBardState.Async))
+        //     {
+        //         asyncDict = {};
+        //         state.VirtualBardState.Async = asyncDict;
+        //     }
+        //     else
+        //     {
+        //         asyncDict = state.VirtualBardState.Async;
+        //     }
+        //     var asyncHolder = asyncDict[id];
+        //     if (!isAssigned(asyncHolder))
+        //     {
+        //         asyncHolder = {};
+        //         asyncDict[id] = asyncHolder;
+        //     }
+        //     return asyncHolder;
+        // },
+        // /** Returns a Roll20 objects value synchronously. If it has not been prepared, this will raise an error.  */
+        // getAsynchronousValue: function (refObject: Roll20Object, attribName: string) : any
+        // {
+        //     var holder = p_sysFunctions.getAsyncHolder
+        // },
+        // /** Prepares a asynchronous value for synchronous retrieval. Puts the value into the gamestate. */
+        // prepareAsyncValue : function(refObject: Roll20Object, attribName: string) : void {
+        // },
         getSafeCharacterName: function (charName) {
             return "_vb_c:" + charName;
         },
