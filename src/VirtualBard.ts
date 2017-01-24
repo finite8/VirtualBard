@@ -81,7 +81,13 @@ namespace VirtualBard {
 
     export let LoadedModules : VBModuleInfo[] = [];
 
-    
+    export function ifNotNull<T>(inval : T, callback : (val : T) => void) : void
+    {
+        if (isAssigned(inval))
+        {
+            callback(inval);
+        }
+    }
 
     function GetVBModuleForClass(className: string) : VBModuleInfo
     {
@@ -507,6 +513,12 @@ namespace VirtualBard {
         public IsNew: boolean;
         public Char: CharacterReferenceBase;
     }
+    enum LogStates {
+        /** Full character descriptors are added */
+        IsMetCharacter,
+        /** Starts with name only */
+        IsWhoCharacter
+    }
     class UserContext {
         constructor(playerId: string, userName: string) {
             this.PlayerId = playerId;
@@ -516,11 +528,19 @@ namespace VirtualBard {
         public UserName: string;
         public Current: any;
         public CurrentChar: CharacterReferenceBase;
-
+        public InfoLines : string[];
+        public CurrentLogState: LogStates;
+        public CurrentStartLog: boolean;
         public SendChat(text: string): void {
             sendMessage(this.UserName, text);
         }
+        public SetCharContext(c : CharacterReferenceBase)
+        {
+            this.CurrentChar = c;
+            this.InfoLines = [];
+        }
     }
+    
     /**
      * The location info provides an individual entry for location history.
      */
@@ -710,7 +730,6 @@ namespace VirtualBard {
             this.Data.SetProperty(attribName, savedValue);
             this.SaveData(this.Data);
         }
-
 
     }
     /**
@@ -1225,26 +1244,62 @@ namespace VirtualBard {
         @VBModulePostAction()
         public logAction(ctx : UserContext) : void
         {
-            var sp = ctx.Current.SentenceParts;
-            if (isDefined(sp) && isDefined(sp.Name)) {
-                var sent = "";
-                sent = sent + "The party met [" + sp.Name + "]";
-                if (isAnyDefined(sp.Race, sp.Sex, sp.Class)) {
+            // as we have full character info and this can update a current record over multiple calls, 
+            let char = ctx.CurrentChar;
+            if (!isAssigned(char))
+            {
+                return; // nothing to do
+            }
+            
+            
+            var sent = "";
+            if (ctx.CurrentLogState == LogStates.IsMetCharacter)
+            {
+                sent = sent + "The party met [" + char.GetAttribute("Name") + "]";
+                let Race = char.GetAttribute<string>("Race");
+                let Sex = char.GetAttribute<string>("Sex");
+                let Class = char.GetAttribute<string>("Class");
+                if (isAnyDefined(Race, Sex, Class)) {
                     sent = sent + ", a";
-                    if (isDefined(sp.Sex)) {
-                        sent = sent + " " + sp.Sex;
+                    if (isDefined(Sex)) {
+                        sent = sent + " " + Sex;
                     }
-                    if (isDefined(sp.Race)) {
-                        sent = sent + " " + sp.Race;
+                    if (isDefined(Race)) {
+                        sent = sent + " " + Race;
                     }
-                    if (isDefined(sp.Class)) {
-                        sent = sent + " " + sp.Class;
+                    if (isDefined(Class)) {
+                        sent = sent + " " + Class;
                     }
                 }
-                sent = sent + ".";
-                p_journalFunctions.appendJournalLine(sent);
-                
+                sent = sent + ". " + c_NL;
             }
+            else
+            {
+                // we only add text in who state if info lines has been added.
+                if (ctx.InfoLines.length > 0)
+                {
+                    sent = sent + "In regards to [" + char.GetAttribute("Name") + "]:" + c_NL;
+                }
+            }
+            if (ctx.InfoLines.length > 0)
+            {
+                sent = sent + "<ul>" + ctx.InfoLines.map(function (i) {return `<li>${i}</li>`}).join(c_NL) + "</ul>" + c_NL;
+            }
+            
+            
+            p_journalFunctions.setEntry(ctx, sent, ctx.CurrentStartLog == true);
+            ctx.CurrentStartLog = false;
+            
+                
+            
+        }
+
+        @VBModuleCommand("i", "Adds an Info line")
+        public addInfo(ctx: UserContext, cmd: MessageCommand) : void
+        {
+            CharacterFunctions.assertCurrentCharDefined(ctx, cmd);
+            
+
         }
 
         @VBModuleCommand("who", "Switches context to the specified character")
@@ -1254,9 +1309,19 @@ namespace VirtualBard {
             let r = p_sysFunctions.getCharacterInfo(charName);
             if (isDefined(r)) {
                 // we have the character
-
-                ctx.CurrentChar = r.Char;
+                if (isAssigned(ctx.CurrentChar))
+                {
+                    // check to see if the current char context is the same as whats being selected
+                    if (ctx.CurrentChar.GetAttribute("Name") == r.Char.GetAttribute("Name"))
+                    {
+                        ctx.SendChat(`Character context was already set to ${ctx.CurrentChar.GetAttribute("Name")}`);
+                        return;
+                    }
+                }
+                ctx.SetCharContext(r.Char);
                 ctx.SendChat("Character context set to: " + r.Char.GetAttribute<string>("Name"));
+                ctx.CurrentLogState = LogStates.IsWhoCharacter;
+                ctx.CurrentStartLog = true; 
             }
             else {
                 ctx.SendChat("No character exists with name: " + charName);
@@ -1303,8 +1368,12 @@ namespace VirtualBard {
                 //broadcastMessage("The party met " + charName);
                 //ctx.Current.SentenceParts.Name = charName;
             }
-            ctx.Current.SentenceParts.Name = charName;
-            ctx.CurrentChar = r.Char;
+            
+            ctx.SetCharContext(r.Char);
+            
+            ctx.CurrentLogState = LogStates.IsMetCharacter;
+            ctx.CurrentStartLog = true; 
+            
 
         }
         @VBModuleCommand("c")
@@ -1313,11 +1382,11 @@ namespace VirtualBard {
             var realClass = settings.classTypes[cmd.Params[0].toLowerCase()];
             if (!isDefined(realClass)) {
                 ctx.SendChat("Class " + cmd.Params[0] + " could not be resolved to a real class. Character sheet will resort to a default instead");
-                ctx.Current.SentenceParts.Class = cmd.Params[0];
+                
                 realClass = "";
             }
             else {
-                ctx.Current.SentenceParts.Class = realClass;
+                
             }
             ctx.CurrentChar.SetAttribute("class", realClass);
             ctx.CurrentChar.SetAttribute("inputClass", cmd.Params[0]);
@@ -1326,14 +1395,14 @@ namespace VirtualBard {
         public sexAction (ctx: UserContext, cmd: MessageCommand) : void {
             CharacterFunctions.assertCurrentCharDefined(ctx, cmd);
             var sex = CharacterFunctions.parseSex(cmd.Params[0]);
-            ctx.Current.SentenceParts.Sex = sex;
+            
             ctx.CurrentChar.SetAttribute("sex", sex);
         }
         @VBModuleCommand("r")
         public raceAction (ctx: UserContext, cmd: MessageCommand) {
             CharacterFunctions.assertCurrentCharDefined(ctx, cmd);
-            ctx.Current.SentenceParts.Race = cmd.Params.join(" ");
-            ctx.CurrentChar.SetAttribute("race", ctx.Current.SentenceParts.Race);
+            let Race = cmd.Params.join(" ");
+            ctx.CurrentChar.SetAttribute("race", Race);
         }
         static parseSex (text) {
             var sex = settings.sexTypes[text.toLowerCase()];
