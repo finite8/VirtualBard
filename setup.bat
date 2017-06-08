@@ -1,8 +1,8 @@
 @echo off
 echo Installing Typescript
-cmd /c npm install typescript -g
+cmd /c npm install --save-dev typescript
 echo Installing Typings
-cmd /c npm install typings -g
+cmd /c npm install --save-dev typings
 echo Installing Underscore Typings references
 cmd /c typings install dt~underscore --global
 set path > temp.txt

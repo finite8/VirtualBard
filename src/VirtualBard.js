@@ -1,19 +1,3 @@
-var __extends = (this && this.__extends) || (function () {
-    var extendStatics = Object.setPrototypeOf ||
-        ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
-        function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
-    return function (d, b) {
-        extendStatics(d, b);
-        function __() { this.constructor = d; }
-        d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
-    };
-})();
-var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
-    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
-    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
-    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
-    return c > 3 && r && Object.defineProperty(target, key, r), r;
-};
 /// <reference path="Roll20typedef.d.ts" />
 /// <reference path="../typings/globals/underscore/index.d.ts" />
 /*
@@ -30,6 +14,22 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
     You should have received a copy of the GNU General Public License
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
+var __extends = (this && this.__extends) || (function () {
+    var extendStatics = Object.setPrototypeOf ||
+        ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
+        function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
+    return function (d, b) {
+        extendStatics(d, b);
+        function __() { this.constructor = d; }
+        d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
+    };
+})();
+var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
+    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
+    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
+    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
+    return c > 3 && r && Object.defineProperty(target, key, r), r;
+};
 var VirtualBard;
 (function (VirtualBard) {
     VirtualBard.revision = "$Id$";
@@ -37,7 +37,7 @@ var VirtualBard;
     function Debug(text) {
         if (debugMode == true) {
             var stack = (new Error()).stack;
-            VirtualBard.log(JSON.stringify(text) + " -- " + stack.split("\n")[2].trim());
+            log(JSON.stringify(text) + " -- " + stack.split("\n")[2].trim());
         }
     }
     VirtualBard.Debug = Debug;
@@ -144,7 +144,7 @@ var VirtualBard;
     }
     //  
     function Setup(completionCallback) {
-        VirtualBard.on("ready", function () {
+        on("ready", function () {
             Debug("Ready Fired");
             var settingsHandout = p_sysFunctions.getHandout("VBSettings", true, false);
             settingsHandout.get("gmnotes", function (d) {
@@ -161,7 +161,7 @@ var VirtualBard;
                     }
                     if (setData) {
                         VirtualBard.settings = DefaultSettings();
-                        VirtualBard.setTimeout(function () {
+                        setTimeout(function () {
                             var notes = JSON.stringify(VirtualBard.settings);
                             settingsHandout.set("gmnotes", "<Settings>" + notes + "</Settings>");
                             LoadState();
@@ -172,7 +172,7 @@ var VirtualBard;
                     }
                     else {
                         //log("Existing: " + JSON.stringify(loadedSettings));
-                        VirtualBard.settings = VirtualBard._.extend(DefaultSettings(), loadedSettings);
+                        VirtualBard.settings = _.extend(DefaultSettings(), loadedSettings);
                         LoadState();
                         //log(completionCallback);
                         if (isAssigned(completionCallback)) {
@@ -183,7 +183,7 @@ var VirtualBard;
                 }
                 catch (err) {
                     // we dont REALLY care about the error. we will however use it to indicate some kind of json error
-                    VirtualBard.log("WARNING! Configuration error. Failed to parse custom settings data. Error: " + err.message);
+                    log("WARNING! Configuration error. Failed to parse custom settings data. Error: " + err.message);
                     VirtualBard.settings = DefaultSettings();
                 }
             });
@@ -565,13 +565,13 @@ var VirtualBard;
     }());
     function LoadState() {
         VirtualBard.CurrentState = new AdventureState();
-        if (isAssigned(VirtualBard.state.VirtualBardState)) {
-            VirtualBard._.extend(VirtualBard.CurrentState, VirtualBard.state.VirtualBardState);
+        if (isAssigned(state.VirtualBardState)) {
+            _.extend(VirtualBard.CurrentState, state.VirtualBardState);
         }
     }
     VirtualBard.LoadState = LoadState;
     function SaveState() {
-        VirtualBard.state.VirtualBardState = VirtualBard.CurrentState;
+        state.VirtualBardState = VirtualBard.CurrentState;
     }
     VirtualBard.SaveState = SaveState;
     /**
@@ -647,7 +647,7 @@ var VirtualBard;
                 var tag = findTag(t, "CharData");
                 if (tag != null) {
                     var jData = JSON.parse(tag.text);
-                    VirtualBard._.extend(refObj.Data, jData);
+                    _.extend(refObj.Data, jData);
                     // We need to enumerate all of the properties defined in the character
                     for (var pName in refObj.Data) {
                         if (refObj.Data.hasOwnProperty(pName)) {
@@ -660,8 +660,8 @@ var VirtualBard;
         };
         CharacterSheetReference.prototype.SaveData = function (data) {
             var refObj = this;
-            VirtualBard.log("Saving");
-            VirtualBard.log(this);
+            log("Saving");
+            log(this);
             this.CharSheet.get("gmnotes", function (t) {
                 var htmlEdt = findTag(t, "CharData");
                 if (htmlEdt == null) {
@@ -669,7 +669,7 @@ var VirtualBard;
                     htmlEdt = htmlEdt.appendTag("CharData");
                 }
                 htmlEdt.setText(JSON.stringify(refObj.Data));
-                VirtualBard.setTimeout(function () {
+                setTimeout(function () {
                     refObj.CharSheet.set("gmnotes", htmlEdt.getText());
                 }, 1);
             });
@@ -971,10 +971,10 @@ var VirtualBard;
     function processAction(user, data) {
     }
     function sendMessage(user, message) {
-        VirtualBard.sendChat(VirtualBard.settings.VirtualBardMessageSourceName, "/w " + user + " " + message);
+        sendChat(VirtualBard.settings.VirtualBardMessageSourceName, "/w " + user + " " + message);
     }
     function broadcastMessage(message) {
-        VirtualBard.sendChat(VirtualBard.settings.VirtualBardMessageSourceName, message);
+        sendChat(VirtualBard.settings.VirtualBardMessageSourceName, message);
     }
     function getUserContext(msg) {
         var ctx = contextStore[msg.playerid];
@@ -1016,7 +1016,7 @@ var VirtualBard;
                 cmdInfo.Delegate(context, cmd);
             }
             catch (er) {
-                VirtualBard.log(JSON.stringify(er));
+                log(JSON.stringify(er));
                 if (typeof er == "Error") {
                     var err = er;
                     errors.push("cmd=(" + cmd.Type + " " + cmd.Params.join(" ") + "), err=" + err.message + ", stack=" + err.stack);
@@ -1046,7 +1046,7 @@ var VirtualBard;
         };
         SystemFunctions.prototype.disableDebug = function (ctx, cmd) {
             debugMode = false;
-            VirtualBard.log("Debug Mode disabled");
+            log("Debug Mode disabled");
         };
         SystemFunctions.prototype.listModules = function (ctx, cmd) {
             if (cmd.Params.length > 0) {
@@ -1156,7 +1156,7 @@ var VirtualBard;
         };
         CharacterFunctions.prototype.findAction = function (ctx, cmd) {
             var charNames = p_sysFunctions.listCharacters();
-            VirtualBard.log(charNames);
+            log(charNames);
             var matchRule = cmd.Params.join(" ").toLowerCase().trim();
             var matches = [];
             for (var i = 0; i < charNames.length; i++) {
@@ -1266,7 +1266,7 @@ var VirtualBard;
             // - Edits in progress are still shown in any handouts.
             // - Edits can now happen over several commands. No need to do it all in one line.
             var journal = p_journalFunctions.getJournalHandout();
-            VirtualBard.log(journal);
+            log(journal);
             journal.get("notes", function (notes) {
                 var r = p_journalFunctions.getJournalTextEditor(notes);
                 var currTag = r.findTag("font", { id: "\"" + ctx.PlayerId + "\"" });
@@ -1287,7 +1287,7 @@ var VirtualBard;
                     currTag = r.findTag("font", { id: "\"" + ctx.PlayerId + "\"" });
                 }
                 currTag.setText(text);
-                VirtualBard.setTimeout(function () { journal.set("notes", r.getText()); }, 5);
+                setTimeout(function () { journal.set("notes", r.getText()); }, 5);
             });
         },
         /** ends an entry in the journal. If an entry is not available, this does nothing */
@@ -1298,7 +1298,7 @@ var VirtualBard;
                 var currTag = r.findTag("font", { id: "\"" + ctx.PlayerId + "\"" });
                 if (currTag != null) {
                     currTag.removeTag();
-                    VirtualBard.setTimeout(function () { journal.set("notes", r.getText()); }, 5);
+                    setTimeout(function () { journal.set("notes", r.getText()); }, 5);
                 }
             });
         },
@@ -1317,7 +1317,7 @@ var VirtualBard;
             var j = p_journalFunctions.getJournalHandout();
             j.get("notes", function (n) {
                 Debug("Existing Notes:" + n);
-                VirtualBard.setTimeout(function () {
+                setTimeout(function () {
                     j.set("notes", n + text);
                 }, 100);
             });
@@ -1338,9 +1338,9 @@ var VirtualBard;
             if (typeof this.journalHandout !== 'undefined') {
                 return this.journalHandout;
             }
-            var handouts = VirtualBard.findObjs({ _type: "handout", name: VirtualBard.settings.AdventureLogConfiguration.HandoutName });
+            var handouts = findObjs({ _type: "handout", name: VirtualBard.settings.AdventureLogConfiguration.HandoutName });
             if (handouts.length == 0) {
-                var h = VirtualBard.createObj("handout", { name: VirtualBard.settings.AdventureLogConfiguration.HandoutName, inplayerjournals: "all", controlledby: "all", notes: "" });
+                var h = createObj("handout", { name: VirtualBard.settings.AdventureLogConfiguration.HandoutName, inplayerjournals: "all", controlledby: "all", notes: "" });
                 this.journalHandout = h;
             }
             else {
@@ -1384,7 +1384,7 @@ var VirtualBard;
         },
         /** Gets or Creates a handout with the specified name. */
         getHandout: function (handoutName, isHidden, isEditable) {
-            var hos = VirtualBard.findObjs({ _type: "handout", name: handoutName });
+            var hos = findObjs({ _type: "handout", name: handoutName });
             Debug(hos);
             if (isAssigned(hos) && hos.length > 0) {
                 return hos[0];
@@ -1405,11 +1405,11 @@ var VirtualBard;
                 else {
                     isEditableStr = "";
                 }
-                return VirtualBard.createObj("handout", { name: handoutName, inplayerjournals: inplayerjournalsStr, controlledby: isEditableStr });
+                return createObj("handout", { name: handoutName, inplayerjournals: inplayerjournalsStr, controlledby: isEditableStr });
             }
         },
         findCharacterSheet: function (charName) {
-            var shts = VirtualBard.findObjs({ _type: "character", name: charName });
+            var shts = findObjs({ _type: "character", name: charName });
             Debug(shts);
             if (shts.length == 0) {
                 return null;
@@ -1432,7 +1432,7 @@ var VirtualBard;
                 var mode = modeOrder[i];
                 switch (mode) {
                     case CharacterMode.Sheet:
-                        var cSheets = VirtualBard.findObjs({ _type: "character" });
+                        var cSheets = findObjs({ _type: "character" });
                         for (var i = 0; i < cSheets.length; i++) {
                             var element = cSheets[i];
                             var currName = element.get("name");
@@ -1459,7 +1459,7 @@ var VirtualBard;
                             Debug("Could not find Character sheet for " + charName);
                             if (m.canCreate) {
                                 Debug("Creating...");
-                                char = VirtualBard.createObj("character", { name: charName, inplayerjournals: "all", controlledby: "all" });
+                                char = createObj("character", { name: charName, inplayerjournals: "all", controlledby: "all" });
                                 this.setCharacterAttribute(char, VBAttributes.IsMet, true);
                                 isNew = true;
                             }
@@ -1477,7 +1477,7 @@ var VirtualBard;
                         ret.Char = new CharacterSheetReference(char);
                         return ret;
                     default:
-                        VirtualBard.log("CharacterSheetMode " + JSON.stringify(m) + " is not yet implemented");
+                        log("CharacterSheetMode " + JSON.stringify(m) + " is not yet implemented");
                 }
             }
             throw "VirtualBard was unable to resolve the character " + charName + ". Try adding more ResolutionOptions or allowing VirtualBard to create sheets or handouts.";
@@ -1492,11 +1492,11 @@ var VirtualBard;
             return result;
         },
         setCharacterAttribute: function (char, attribName, newValue) {
-            var attribs = VirtualBard.findObjs({ _type: "attribute", _characterid: char.id, name: attribName });
+            var attribs = findObjs({ _type: "attribute", _characterid: char.id, name: attribName });
             //log(findObjs({_type:"attribute", _characterid:char.id}));
             if (attribs.length == 0) {
                 // we instead need to insert it
-                var newAttrib = VirtualBard.createObj("attribute", { name: attribName, current: newValue, characterid: char.id });
+                var newAttrib = createObj("attribute", { name: attribName, current: newValue, characterid: char.id });
                 Debug("Inserting attribute" + attribName);
             }
             else if (attribs.length > 1) {
@@ -1511,7 +1511,7 @@ var VirtualBard;
     /** Initializes the VirtualBard engine */
     function Initialize() {
         Setup(function () {
-            VirtualBard.on("chat:message", function (msg) {
+            on("chat:message", function (msg) {
                 if (msg.who != VirtualBard.settings.VirtualBardMessageSourceName) {
                     Debug(msg);
                     //try
@@ -1537,21 +1537,21 @@ var VirtualBard;
                 //}
             });
             VirtualBard.isInitialized = true;
-            VirtualBard.log("VirtualBard Ready");
+            log("VirtualBard Ready");
         });
     }
     VirtualBard.Initialize = Initialize;
     ;
     VirtualBard.isInitialized = false;
     function DumpEnvironment() {
-        VirtualBard.log("========= DUMPING ENVIRONMENT ===========");
-        VirtualBard.log("Timestamp: " + new Date());
-        VirtualBard.log("======= BEGIN GAME STATE =========");
-        VirtualBard.log(SmartStringify(VirtualBard.state));
-        VirtualBard.log("======= BEGIN VIRTUALBARD ENVIRONMENT =========");
-        VirtualBard.log(SmartStringify(VirtualBard));
-        VirtualBard.log("========= END DUMP ===========");
-        VirtualBard.log("If you are collecting this as part of submitting a bug or issue, use a service like http://pastebin.com/ to provide a link to the full dump when submitting");
+        log("========= DUMPING ENVIRONMENT ===========");
+        log("Timestamp: " + new Date());
+        log("======= BEGIN GAME STATE =========");
+        log(SmartStringify(state));
+        log("======= BEGIN VIRTUALBARD ENVIRONMENT =========");
+        log(SmartStringify(VirtualBard));
+        log("========= END DUMP ===========");
+        log("If you are collecting this as part of submitting a bug or issue, use a service like http://pastebin.com/ to provide a link to the full dump when submitting");
     }
     VirtualBard.DumpEnvironment = DumpEnvironment;
     function SmartStringify(obj) {
@@ -1568,404 +1568,4 @@ var VirtualBard;
     }
     VirtualBard.SmartStringify = SmartStringify;
     var SystemFunctions_1, CharacterFunctions_1;
-})(VirtualBard || (VirtualBard = {}));
-/// <reference path="../typings/globals/underscore/index.d.ts" />
-var Assert;
-(function (Assert) {
-    var AssertionFailure = (function (_super) {
-        __extends(AssertionFailure, _super);
-        function AssertionFailure(r) {
-            var _this = _super.call(this, r) || this;
-            _this.reason = r;
-            return _this;
-        }
-        return AssertionFailure;
-    }(Error));
-    var passes = 0;
-    var failures = 0;
-    var scopes = [];
-    function PrintSummary() {
-        console.log(passes + " Tests Passed");
-        if (failures > 0) {
-            console.log(failures + " Tests FAILED!");
-        }
-        else {
-            console.log("No Failures");
-        }
-    }
-    Assert.PrintSummary = PrintSummary;
-    var ScopeEntry = (function () {
-        function ScopeEntry(typeToUse, nameToUse) {
-            this.type = typeToUse;
-            this.name = nameToUse;
-        }
-        return ScopeEntry;
-    }());
-    var ScopeType;
-    (function (ScopeType) {
-        ScopeType[ScopeType["TestClass"] = 0] = "TestClass";
-        ScopeType[ScopeType["TestClassFunction"] = 1] = "TestClassFunction";
-        ScopeType[ScopeType["AssertionDescription"] = 2] = "AssertionDescription";
-    })(ScopeType || (ScopeType = {}));
-    function PrintFailure(result) {
-        failures++;
-        console.log("FAIL: " + GetScopedPath() + " REASON: " + result);
-    }
-    function ThrowFail(result) {
-        failures++;
-        var path = GetScopedPath();
-        throw new AssertionFailure("FAIL: " + GetScopedPath() + " REASON: " + result);
-    }
-    function PrintAssertionPass(assertName) {
-        PushAssertionNameScope(assertName);
-        PrintPass();
-        scopes.pop();
-    }
-    function PrintAssertionFailure(assertName, reason) {
-        PushAssertionNameScope(assertName);
-        PrintFailure(reason);
-        scopes.pop();
-    }
-    function PrintPass() {
-        passes++;
-        console.log("PASS: " + GetScopedPath());
-    }
-    function PushAssertionNameScope(assertionName) {
-        scopes.push(new ScopeEntry(ScopeType.AssertionDescription, assertionName));
-    }
-    function GetScopedPath() {
-        var path = "";
-        for (var i = 0; i < scopes.length; i++) {
-            var curr = scopes[i];
-            var next = i + 1 < scopes.length ? scopes[i + 1] : null;
-            if (next == null) {
-                path += curr.name;
-            }
-            else {
-                if (next.type == ScopeType.AssertionDescription) {
-                    path += curr.name + "=>";
-                }
-                else {
-                    path += curr.name + ".";
-                }
-            }
-        }
-        return path;
-    }
-    function Suite(suiteName, delegate) {
-        console.log("=== Starting test suite " + GetScopedPath());
-        try {
-            delegate();
-            console.log("=== Test suite " + GetScopedPath() + " Passed");
-        }
-        catch (error) {
-            if (typeof error !== 'AssertionFailure') {
-                var err = error;
-                throw "!!! Suite '" + GetScopedPath() + "' Failed.\r\n"
-                    + "Reason: " + err.message + "\r\n"
-                    + "StackTrace: " + err.stack;
-            }
-        }
-    }
-    Assert.Suite = Suite;
-    function IsTrue(descript, actual) {
-        PushAssertionNameScope(descript);
-        try {
-            if (actual == true) {
-                PrintPass();
-            }
-            else {
-                ThrowFail("Expected TRUE actual " + actual);
-            }
-        }
-        finally {
-            scopes.pop();
-        }
-    }
-    Assert.IsTrue = IsTrue;
-    function IsFalse(descript, actual) {
-        PushAssertionNameScope(descript);
-        try {
-            if (actual == false) {
-                PrintPass();
-            }
-            else {
-                ThrowFail("Expected FALSE actual " + actual);
-            }
-        }
-        finally {
-            scopes.pop();
-        }
-    }
-    Assert.IsFalse = IsFalse;
-    function AreEqual(descript, expected, actual) {
-        PushAssertionNameScope(descript);
-        try {
-            if (expected === actual) {
-                PrintPass();
-            }
-            else {
-                ThrowFail("Expected " + expected + ", Actual " + actual);
-            }
-        }
-        finally {
-            scopes.pop();
-        }
-    }
-    Assert.AreEqual = AreEqual;
-    function TestClass(classToTest) {
-        scopes.push(new ScopeEntry(ScopeType.TestClass, classToTest.constructor.name));
-        var hasErrors = false;
-        for (var p in classToTest) {
-            var i = classToTest[p];
-            if (typeof i === "function") {
-                scopes.push(new ScopeEntry(ScopeType.TestClassFunction, p));
-                var method = i;
-                try {
-                    Suite(p, method);
-                    scopes.pop();
-                }
-                catch (e) {
-                    if (e.constructor.name !== 'AssertionFailure') {
-                        hasErrors = true;
-                        PrintAssertionFailure(p, JSON.stringify(e));
-                    }
-                    scopes.pop();
-                }
-            }
-        }
-        scopes.pop();
-        if (hasErrors) {
-            throw "Test failed. See previous messages";
-        }
-    }
-    Assert.TestClass = TestClass;
-})(Assert || (Assert = {}));
-/// <reference path="..\src\VirtualBard.ts" />"
-/// <reference path="..\test\TestFramework.ts" />"
-var VirtualBard;
-(function (VirtualBard) {
-    /**
-     * Provides a Mock for the Roll20 log function
-     */
-    var Handler = (function () {
-        function Handler() {
-        }
-        return Handler;
-    }());
-    var registeredHandlers = [];
-    // MOCK MEMBERS
-    function setTimeout(func, timeout) {
-        func();
-    }
-    VirtualBard.setTimeout = setTimeout;
-    function log(text) {
-        console.log(text);
-    }
-    VirtualBard.log = log;
-    VirtualBard.state = { VirtualBardState: null };
-    /**
-     * Provides a mock for the roll20 "on"" function
-     */
-    function on(eventType, func) {
-        registeredHandlers.push({
-            event: eventType,
-            callback: func
-        });
-        console.log("Event \"" + eventType + "\" binding added");
-    }
-    VirtualBard.on = on;
-    function sendChat(src, msg) {
-        console.log("CHATMSG(sender=" + src + "): " + msg);
-        RaiseApiMessage(msg);
-    }
-    VirtualBard.sendChat = sendChat;
-    function findObjs(attrib) {
-        var results = [];
-        for (var i = 0; i < mockedObjects.length; i++) {
-            var obj = mockedObjects[i];
-            var isMatch = true;
-            for (var p in attrib) {
-                if (attrib[p] !== obj[p]) {
-                    isMatch = false;
-                    break;
-                }
-            }
-            if (isMatch) {
-                results.push(obj);
-            }
-        }
-        return results;
-    }
-    VirtualBard.findObjs = findObjs;
-    var mockedObjects = [];
-    var globalId = 1;
-    function createObj(typeName, initParam) {
-        initParam.type = typeName;
-        initParam.SecretProps = {};
-        initParam.get = function (propToGet, callback) {
-            var val;
-            if (VirtualBard.isAssigned(initParam.SecretProps[propToGet])) {
-                val = null;
-            }
-            else {
-                val = initParam.SecretProps[propToGet];
-            }
-            // console.log(`get method for property "${propToGet}" on object "${initParam}" invoking callback`);
-            // callback(val);
-            setTimeout(function () {
-                console.log("get method for property \"" + propToGet + "\" on object \"" + initParam + "\" invoking callback");
-                callback(val);
-            }, 0);
-        };
-        initParam.set = function (propToSet, value) {
-            initParam.SecretProps[propToSet] = value;
-        };
-        initParam.id = globalId;
-        globalId++;
-        mockedObjects.push(initParam);
-        return initParam;
-    }
-    VirtualBard.createObj = createObj;
-    VirtualBard._ = {};
-    VirtualBard._.extend = function (dest, from) {
-        for (var p in from) {
-            if (from.hasOwnProperty(p)) {
-                dest[p] = from[p];
-            }
-        }
-    };
-    // END MOCKS
-    function RaiseEvent(eventType) {
-        var rest = [];
-        for (var _i = 1; _i < arguments.length; _i++) {
-            rest[_i - 1] = arguments[_i];
-        }
-        for (var i = 0; i < registeredHandlers.length; i++) {
-            var h = registeredHandlers[i];
-            if (h.event == eventType) {
-                var f = h.callback;
-                console.log("Raising event " + eventType + " on delegate with arguments [" + JSON.stringify(rest) + "]");
-                if (VirtualBard.isAssigned(rest) && rest.length > 0) {
-                    f.apply(this, rest);
-                }
-                else {
-                    f();
-                }
-            }
-        }
-    }
-    function RaiseApiMessage(text) {
-        console.log(JSON.stringify(registeredHandlers));
-        var msg = {
-            type: "api",
-            who: "TestFramework",
-            playerid: "0000000",
-            content: text
-        };
-        RaiseEvent("chat:message", msg);
-    }
-    VirtualBard.Initialize();
-    RaiseEvent("ready");
-    VirtualBard.SaveState();
-    var myString = "balls balls and balls and stuff<test id=\"1\" others=\"5\">someother <innerTest></innerTest></test>";
-    var r = VirtualBard.findTag(myString, "test", { id: "1" });
-    var CommonFunctionTests = (function () {
-        function CommonFunctionTests() {
-        }
-        CommonFunctionTests.prototype.TestHTMLEdit = function () {
-            Assert.AreEqual("HTMLEdit Basic test", "balls balls and balls and stuff<test id=\"1\" others=\"5\">[Prepended]someother <innerTest>[SetText]</innerTest>[Appended]</test>", r.appendText("[Appended]").prependText("[Prepended]").findTag("innerTest").setText("[SetText]").getText());
-            var test = VirtualBard.findTag(myString, "test");
-            Assert.AreEqual("HTMLEdit Tag Remove", "balls balls and balls and stuffsomeother <innerTest></innerTest>", test.removeTag().getText());
-        };
-        CommonFunctionTests.prototype.TestWildcard = function () {
-            Assert.IsTrue("Basic Wildcard", VirtualBard.matchRuleShort("SomeString", "*meStr*"));
-            Assert.IsTrue("arry in Larry Barry", VirtualBard.matchRuleShort("Larry McBarry", "*arry*"));
-            Assert.IsFalse("drry in Larry Barry", VirtualBard.matchRuleShort("Larry McBarry", "*drry*"));
-        };
-        return CommonFunctionTests;
-    }());
-    var FunctionTests = (function () {
-        function FunctionTests() {
-        }
-        FunctionTests.prototype.TestDuration = function () {
-            var d = new VirtualBard.Duration();
-            Assert.AreEqual("Zero time", "Beginning", d.GetDisplayText());
-            d.Hour = 1;
-            Assert.AreEqual("One hour (no plural)", "1 hour", d.GetDisplayText());
-            d.Hour = 2;
-            Assert.AreEqual("Two hours (plural)", "2 hours", d.GetDisplayText());
-            d.Day = 1;
-            Assert.AreEqual("Two hours + 1 day", "2 hours and 1 day", d.GetDisplayText());
-            d.Week = 1;
-            Assert.AreEqual("3 parts", "2 hours, 1 day and 1 week", d.GetDisplayText());
-            d.Month = 1;
-            Assert.AreEqual("4 parts", "2 hours, 1 day, 1 week and 1 month", d.GetDisplayText());
-            d.Year = 1;
-            Assert.AreEqual("5 parts", "2 hours, 1 day, 1 week, 1 month and 1 year", d.GetDisplayText());
-        };
-        FunctionTests.prototype.TestCalendar = function () {
-            var c = new VirtualBard.AdventureCalendar();
-            Assert.AreEqual("DisplayText", "Midnight 1st of Hammer 0PR", c.GetDisplayText());
-            c.AddHours(1);
-            Assert.AreEqual("DisplayText + 1hr", "Moondark 1st of Hammer 0PR", c.GetDisplayText());
-            c.AddHours(24);
-            Assert.AreEqual("DisplayText + 24hr", "Moondark 2nd of Hammer 0PR", c.GetDisplayText());
-            c.SetTime(0);
-            Assert.AreEqual("SetTime to 0", "Midnight 2nd of Hammer 0PR", c.GetDisplayText());
-            c.StartNextDay();
-            Assert.AreEqual("StartNextDay with default", "Dawn 3rd of Hammer 0PR", c.GetDisplayText());
-            c.StartNextDay("Sunset");
-            Assert.AreEqual("Sunset with default", "Sunset 4th of Hammer 0PR", c.GetDisplayText());
-            Assert.AreEqual("Sunset Hour", 18, c.CurrentDuration.Hour);
-            c.ProgressDayPortion();
-            Assert.AreEqual("ProgressDayPortion", "Evening 4th of Hammer 0PR", c.GetDisplayText());
-            c.AddHours(-24);
-            Assert.AreEqual("Display Text - 24hr", "Evening 3rd of Hammer 0PR", c.GetDisplayText());
-            VirtualBard.settings.CalendarConfiguration.Start.Year = 1000;
-            Assert.AreEqual("Display Text + 1000 year base", "Evening 3rd of Hammer 1000PR", c.GetDisplayText());
-            VirtualBard.settings.CalendarConfiguration.Start.Month = 6;
-            Assert.AreEqual("Display Text + 6 month base", "Evening 3rd of Flamerule 1000PR", c.GetDisplayText());
-            VirtualBard.settings.CalendarConfiguration.Start.Week = 2;
-            Assert.AreEqual("Display Text + 2 week base", "Evening 23rd of Flamerule 1000PR", c.GetDisplayText());
-            VirtualBard.settings.CalendarConfiguration.Start.Week = 3;
-            Assert.AreEqual("Display Text + 3 week base", "Evening 3rd of Elesias 1000PR", c.GetDisplayText());
-        };
-        FunctionTests.prototype.TestLocations = function () {
-            VirtualBard.LoadState();
-            VirtualBard.CurrentState.Calendar.AddHours(10);
-            VirtualBard.CurrentState.Location.NewLocation("Baldurs Gate");
-            Assert.AreEqual("Root Location", "Baldurs Gate", VirtualBard.CurrentState.Location.GetLocationPath());
-            VirtualBard.CurrentState.Calendar.AddHours(10);
-            Assert.AreEqual("Location timespan", "10 hours", VirtualBard.CurrentState.Location.CurrentLocation.GetDuration().GetDisplayText());
-            Assert.AreEqual("Total duration = 20", 20, VirtualBard.CurrentState.Calendar.CurrentDuration.Hour);
-            VirtualBard.CurrentState.Location.EnterSubLocation("Sewers");
-            Assert.AreEqual("New sub location", "Sewers<=Baldurs Gate", VirtualBard.CurrentState.Location.GetLocationPath());
-            VirtualBard.CurrentState.Calendar.AddHours(10);
-            var left = VirtualBard.CurrentState.Location.LeaveSubLocation();
-            Assert.AreEqual("Left location", "Sewers", left.Name);
-            Assert.AreEqual("10 hours at sub location", 10, left.GetDuration().Hour);
-            Assert.AreEqual("Path back to root", "Baldurs Gate", VirtualBard.CurrentState.Location.GetLocationPath());
-            Assert.AreEqual("Total time at root is 20 hours", "20 hours", VirtualBard.CurrentState.Location.CurrentLocation.GetDuration().GetDisplayText());
-        };
-        return FunctionTests;
-    }());
-    Assert.TestClass(new CommonFunctionTests());
-    Assert.TestClass(new FunctionTests());
-    var started = new Date();
-    while (!VirtualBard.isInitialized) {
-        // loop the loop
-        var timeSpent = (new Date().getTime()) - started.getTime();
-        if (timeSpent > 2000) {
-            // wait 2 seconds. More than enough time.
-            throw "Initialization failure. VirtualBard engine did not initialize";
-        }
-    }
-    RaiseApiMessage("!vb DUMP");
-    RaiseApiMessage("!vb -enableDebug");
-    RaiseApiMessage("!vb -disableDebug");
-    RaiseApiMessage("!vb -help");
-    RaiseApiMessage("!vb -help !c");
-    RaiseApiMessage("!c -find *arry*");
-    Assert.PrintSummary();
 })(VirtualBard || (VirtualBard = {}));

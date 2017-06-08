@@ -1,8 +1,13 @@
-var __extends = (this && this.__extends) || function (d, b) {
-    for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p];
-    function __() { this.constructor = d; }
-    d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
-};
+var __extends = (this && this.__extends) || (function () {
+    var extendStatics = Object.setPrototypeOf ||
+        ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
+        function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
+    return function (d, b) {
+        extendStatics(d, b);
+        function __() { this.constructor = d; }
+        d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
+    };
+})();
 var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -36,7 +41,7 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 */
 var VirtualBard;
 (function (VirtualBard) {
-    VirtualBard.revision = "$Id: 22c7a48578cb1741228204012f0105ede057600b $";
+    VirtualBard.revision = "$Id$";
     var debugMode = true;
     function Debug(text) {
         if (debugMode == true) {
@@ -93,6 +98,12 @@ var VirtualBard;
         return VBModuleCommandInfo;
     }());
     VirtualBard.LoadedModules = [];
+    function ifNotNull(inval, callback) {
+        if (isAssigned(inval)) {
+            callback(inval);
+        }
+    }
+    VirtualBard.ifNotNull = ifNotNull;
     function GetVBModuleForClass(className) {
         for (var i = 0; i < VirtualBard.LoadedModules.length; i++) {
             var m = VirtualBard.LoadedModules[i];
@@ -456,6 +467,13 @@ var VirtualBard;
         }
         return CharacterFindResult;
     }());
+    var LogStates;
+    (function (LogStates) {
+        /** Full character descriptors are added */
+        LogStates[LogStates["IsMetCharacter"] = 0] = "IsMetCharacter";
+        /** Starts with name only */
+        LogStates[LogStates["IsWhoCharacter"] = 1] = "IsWhoCharacter";
+    })(LogStates || (LogStates = {}));
     var UserContext = (function () {
         function UserContext(playerId, userName) {
             this.PlayerId = playerId;
@@ -463,6 +481,10 @@ var VirtualBard;
         }
         UserContext.prototype.SendChat = function (text) {
             sendMessage(this.UserName, text);
+        };
+        UserContext.prototype.SetCharContext = function (c) {
+            this.CurrentChar = c;
+            this.InfoLines = [];
         };
         return UserContext;
     }());
@@ -805,6 +827,7 @@ var VirtualBard;
                 if (attributes.hasOwnProperty(p)) {
                     var attribReg = new RegExp(p + "=\"" + attributes[p] + "\"");
                     if (attribReg.exec(match[2]) == null) {
+                        //log("missing attribute");
                     }
                 }
             }
@@ -1079,33 +1102,62 @@ var VirtualBard;
         function CharacterFunctions() {
         }
         CharacterFunctions.prototype.logAction = function (ctx) {
-            var sp = ctx.Current.SentenceParts;
-            if (isDefined(sp) && isDefined(sp.Name)) {
-                var sent = "";
-                sent = sent + "The party met [" + sp.Name + "]";
-                if (isAnyDefined(sp.Race, sp.Sex, sp.Class)) {
+            // as we have full character info and this can update a current record over multiple calls, 
+            var char = ctx.CurrentChar;
+            if (!isAssigned(char)) {
+                return; // nothing to do
+            }
+            var sent = "";
+            if (ctx.CurrentLogState == LogStates.IsMetCharacter) {
+                sent = sent + "The party met [" + char.GetAttribute("Name") + "]";
+                var Race = char.GetAttribute("Race");
+                var Sex = char.GetAttribute("Sex");
+                var Class = char.GetAttribute("Class");
+                if (isAnyDefined(Race, Sex, Class)) {
                     sent = sent + ", a";
-                    if (isDefined(sp.Sex)) {
-                        sent = sent + " " + sp.Sex;
+                    if (isDefined(Sex)) {
+                        sent = sent + " " + Sex;
                     }
-                    if (isDefined(sp.Race)) {
-                        sent = sent + " " + sp.Race;
+                    if (isDefined(Race)) {
+                        sent = sent + " " + Race;
                     }
-                    if (isDefined(sp.Class)) {
-                        sent = sent + " " + sp.Class;
+                    if (isDefined(Class)) {
+                        sent = sent + " " + Class;
                     }
                 }
-                sent = sent + ".";
-                p_journalFunctions.appendJournalLine(sent);
+                sent = sent + ". " + VirtualBard.c_NL;
             }
+            else {
+                // we only add text in who state if info lines has been added.
+                if (ctx.InfoLines.length > 0) {
+                    sent = sent + "In regards to [" + char.GetAttribute("Name") + "]:" + VirtualBard.c_NL;
+                }
+            }
+            if (ctx.InfoLines.length > 0) {
+                sent = sent + "<ul>" + ctx.InfoLines.map(function (i) { return "<li>" + i + "</li>"; }).join(VirtualBard.c_NL) + "</ul>" + VirtualBard.c_NL;
+            }
+            p_journalFunctions.setEntry(ctx, sent, ctx.CurrentStartLog == true);
+            ctx.CurrentStartLog = false;
+        };
+        CharacterFunctions.prototype.addInfo = function (ctx, cmd) {
+            CharacterFunctions_1.assertCurrentCharDefined(ctx, cmd);
         };
         CharacterFunctions.prototype.whoAction = function (ctx, cmd) {
             var charName = cmd.Params.join(" ");
             var r = p_sysFunctions.getCharacterInfo(charName);
             if (isDefined(r)) {
                 // we have the character
-                ctx.CurrentChar = r.Char;
+                if (isAssigned(ctx.CurrentChar)) {
+                    // check to see if the current char context is the same as whats being selected
+                    if (ctx.CurrentChar.GetAttribute("Name") == r.Char.GetAttribute("Name")) {
+                        ctx.SendChat("Character context was already set to " + ctx.CurrentChar.GetAttribute("Name"));
+                        return;
+                    }
+                }
+                ctx.SetCharContext(r.Char);
                 ctx.SendChat("Character context set to: " + r.Char.GetAttribute("Name"));
+                ctx.CurrentLogState = LogStates.IsWhoCharacter;
+                ctx.CurrentStartLog = true;
             }
             else {
                 ctx.SendChat("No character exists with name: " + charName);
@@ -1141,20 +1193,21 @@ var VirtualBard;
                 sendMessage(ctx.UserName, "The party is already aware of " + charName);
             }
             else {
+                //broadcastMessage("The party met " + charName);
+                //ctx.Current.SentenceParts.Name = charName;
             }
-            ctx.Current.SentenceParts.Name = charName;
-            ctx.CurrentChar = r.Char;
+            ctx.SetCharContext(r.Char);
+            ctx.CurrentLogState = LogStates.IsMetCharacter;
+            ctx.CurrentStartLog = true;
         };
         CharacterFunctions.prototype.classAction = function (ctx, cmd) {
             CharacterFunctions_1.assertCurrentCharDefined(ctx, cmd);
             var realClass = VirtualBard.settings.classTypes[cmd.Params[0].toLowerCase()];
             if (!isDefined(realClass)) {
                 ctx.SendChat("Class " + cmd.Params[0] + " could not be resolved to a real class. Character sheet will resort to a default instead");
-                ctx.Current.SentenceParts.Class = cmd.Params[0];
                 realClass = "";
             }
             else {
-                ctx.Current.SentenceParts.Class = realClass;
             }
             ctx.CurrentChar.SetAttribute("class", realClass);
             ctx.CurrentChar.SetAttribute("inputClass", cmd.Params[0]);
@@ -1162,13 +1215,12 @@ var VirtualBard;
         CharacterFunctions.prototype.sexAction = function (ctx, cmd) {
             CharacterFunctions_1.assertCurrentCharDefined(ctx, cmd);
             var sex = CharacterFunctions_1.parseSex(cmd.Params[0]);
-            ctx.Current.SentenceParts.Sex = sex;
             ctx.CurrentChar.SetAttribute("sex", sex);
         };
         CharacterFunctions.prototype.raceAction = function (ctx, cmd) {
             CharacterFunctions_1.assertCurrentCharDefined(ctx, cmd);
-            ctx.Current.SentenceParts.Race = cmd.Params.join(" ");
-            ctx.CurrentChar.SetAttribute("race", ctx.Current.SentenceParts.Race);
+            var Race = cmd.Params.join(" ");
+            ctx.CurrentChar.SetAttribute("race", Race);
         };
         CharacterFunctions.parseSex = function (text) {
             var sex = VirtualBard.settings.sexTypes[text.toLowerCase()];
@@ -1187,6 +1239,9 @@ var VirtualBard;
     __decorate([
         VBModulePostAction()
     ], CharacterFunctions.prototype, "logAction", null);
+    __decorate([
+        VBModuleCommand("i", "Adds an Info line")
+    ], CharacterFunctions.prototype, "addInfo", null);
     __decorate([
         VBModuleCommand("who", "Switches context to the specified character")
     ], CharacterFunctions.prototype, "whoAction", null);
@@ -1209,21 +1264,12 @@ var VirtualBard;
         VBModule("c", "NPC and PC related functions. Covers encounters and information logging")
     ], CharacterFunctions);
     var p_journalFunctions = {
-        journalIsBusy: false,
-        wait: function () {
-            var timeStarted = new Date();
-            while (p_journalFunctions.journalIsBusy == true) {
-                var timeSpent = (new Date().getTime()) - timeStarted.getTime();
-                if (timeSpent > 2000) {
-                    break; // break out after 2 seconds. More than enough time to wait.
-                }
-            }
-        },
         /** Sets the text for the users current journal entry
          * @param ctx {UserContext} - The user context owning this entry
          * @param text {string} - initial text to insert in the new line.
         */
-        setEntry: function (ctx, text) {
+        setEntry: function (ctx, text, startNew) {
+            if (startNew === void 0) { startNew = false; }
             // we only ever allow one entry in the journal per user. This keeps it simple. Retro edits are not possible once we have
             // moved beyond this point. This process allows the following:
             // - Edits in progress are still shown in any handouts.
@@ -1231,50 +1277,39 @@ var VirtualBard;
             var journal = p_journalFunctions.getJournalHandout();
             log(journal);
             journal.get("notes", function (notes) {
-                p_journalFunctions.wait();
-                try {
-                    p_journalFunctions.journalIsBusy = true;
-                    var r_1 = p_journalFunctions.getJournalTextEditor(notes);
-                    var currTag = r_1.findTag("font", { id: "\"" + ctx.PlayerId + "\"" });
-                    if (currTag == null) {
-                        // if the tag doesn't exist, we need to start a new one.
-                        var newTag = "<font id=\"" + ctx.PlayerId + "\" style=\"color:red\"></font>";
-                        switch (VirtualBard.settings.AdventureLogConfiguration.LogDirection) {
-                            case LogDirections.Up:
-                                r_1.prependText(newTag);
-                                break;
-                            case LogDirections.Down:
-                                r_1.appendText(newTag);
-                                break;
-                        }
-                        currTag = r_1.findTag("font", { id: "\"" + ctx.PlayerId + "\"" });
+                var r = p_journalFunctions.getJournalTextEditor(notes);
+                var currTag = r.findTag("font", { id: "\"" + ctx.PlayerId + "\"" });
+                if (currTag != null && startNew) {
+                    currTag.removeTag();
+                }
+                if (currTag == null) {
+                    // if the tag doesn't exist, we need to start a new one.
+                    var newTag = "<font id=\"" + ctx.PlayerId + "\" style=\"color:red\"></font>";
+                    switch (VirtualBard.settings.AdventureLogConfiguration.LogDirection) {
+                        case LogDirections.Up:
+                            r.prependText(newTag);
+                            break;
+                        case LogDirections.Down:
+                            r.appendText(newTag);
+                            break;
                     }
-                    currTag.setText(text);
-                    setTimeout(function () { journal.set("notes", r_1.getText()); }, 5);
+                    currTag = r.findTag("font", { id: "\"" + ctx.PlayerId + "\"" });
                 }
-                finally {
-                    p_journalFunctions.journalIsBusy = false;
-                }
+                currTag.setText(text);
+                setTimeout(function () { journal.set("notes", r.getText()); }, 5);
             });
         },
         /** ends an entry in the journal. If an entry is not available, this does nothing */
         endEntry: function (ctx) {
-            p_journalFunctions.wait();
-            try {
-                p_journalFunctions.journalIsBusy = true;
-                var journal_1 = p_journalFunctions.getJournalHandout();
-                journal_1.get("notes", function (notes) {
-                    var r = p_journalFunctions.getJournalTextEditor(notes);
-                    var currTag = r.findTag("font", { id: "\"" + ctx.PlayerId + "\"" });
-                    if (currTag != null) {
-                        currTag.removeTag();
-                        setTimeout(function () { journal_1.set("notes", r.getText()); }, 5);
-                    }
-                });
-            }
-            finally {
-                p_journalFunctions.journalIsBusy = false;
-            }
+            var journal = p_journalFunctions.getJournalHandout();
+            journal.get("notes", function (notes) {
+                var r = p_journalFunctions.getJournalTextEditor(notes);
+                var currTag = r.findTag("font", { id: "\"" + ctx.PlayerId + "\"" });
+                if (currTag != null) {
+                    currTag.removeTag();
+                    setTimeout(function () { journal.set("notes", r.getText()); }, 5);
+                }
+            });
         },
         getJournalTextEditor: function (notes) {
             var r = findTag(notes, "AdventureLog");

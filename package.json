@@ -9,6 +9,8 @@
   "author": "",
   "license": "ISC",
   "devDependencies": {
-    "shx": "^0.2.2"
+    "shx": "^0.2.2",
+    "typescript": "^2.3.4",
+    "typings": "^2.1.1"
   }
 }
